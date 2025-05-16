@@ -34,7 +34,7 @@ export default function App() {
       const dailyData = response.data.list.filter((item) =>
         item.dt_txt.includes('12:00:00')
       );
-      setForecast(dailyData.slice(0, 5));
+      setForecast(dailyData.slice(0,5));
     } catch (err) {
       const errorMessage = err.response?.data?.message || err.message;
       setError(`Error al obtener el pronóstico: ${errorMessage}`);
@@ -102,7 +102,7 @@ export default function App() {
 
     const interval = setInterval(() => {
       fetchWeatherByLocation();
-    }, 0.50 * 60 * 1000); // 5 minutos
+    }, 1.00 * 60 * 1000); // 5 minutos
 
     return () => clearInterval(interval);
   }, []);
