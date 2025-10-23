@@ -5,11 +5,19 @@ import { auth, db } from "../screens/firebase/firebaseConfig";
 import { collection, query, where, getDocs } from "firebase/firestore";
 
 export default function Recuperar({ navigation }) {
+
   const [correo, setCorreo] = useState('');
 
   const manejarRecuperacion = async () => {
     if (!correo) {
       Alert.alert('Error', 'Por favor ingresa tu correo electrónico.');
+      return;
+    }
+
+    // ✅ Validación formato email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(correo)) {
+      Alert.alert('Correo inválido', 'Por favor ingresa un correo electrónico válido.');
       return;
     }
 
@@ -47,6 +55,7 @@ export default function Recuperar({ navigation }) {
 
   return (
     <View style={styles.contenedor}>
+
       <View style={styles.img}>
         <Image
           source={require('../../assets/LogoWOFitGestorX.png')}
@@ -73,7 +82,7 @@ export default function Recuperar({ navigation }) {
         keyboardType="email-address"
         autoCapitalize="none"
         value={correo}
-        onChangeText={setCorreo}
+        onChangeText={(texto) => setCorreo(texto.toLowerCase())} // ✅ Siempre minúscula
       />
 
       <View style={styles.botonContenedor}>
@@ -83,6 +92,7 @@ export default function Recuperar({ navigation }) {
       <Text style={styles.volver} onPress={() => navigation.navigate('Login')}>
         Volver al inicio de sesión
       </Text>
+
     </View>
   );
 }
@@ -117,6 +127,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     borderWidth: 1,
     borderColor: '#ccc',
+    textTransform: 'lowercase', // ✅ Visualmente minúscula
   },
   botonContenedor: {
     marginBottom: 20,

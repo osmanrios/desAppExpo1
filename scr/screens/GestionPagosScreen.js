@@ -23,9 +23,12 @@ export default function GestionPagos({ navigation }) {
   const [nuevoMetodo, setNuevoMetodo] = useState("");
   const [filtroMetodo, setFiltroMetodo] = useState("Todos");
 
+  // 🔹 Métodos con agrupaciones nuevas
   const metodos = [
     "Todos",
     "Efectivo",
+    "Tarjeta",       // Grupo nuevo
+    "Transferencia", // Grupo nuevo
     "Visa",
     "Mastercard",
     "Davivienda",
@@ -36,6 +39,7 @@ export default function GestionPagos({ navigation }) {
     "Bancolombia",
   ];
 
+  // 🔹 Cargar pagos desde Firebase
   useEffect(() => {
     const fetchPagos = async () => {
       try {
@@ -88,18 +92,37 @@ export default function GestionPagos({ navigation }) {
     fetchPagos();
   }, []);
 
+  // 🔹 Calcular total según filtro
   useEffect(() => {
-    if (filtroMetodo === "Todos") {
-      const totalGeneral = pagos.reduce((sum, p) => sum + p.monto, 0);
-      setTotalMonto(totalGeneral);
-    } else {
-      const totalFiltrado = pagos
-        .filter((p) => (p.subMetodoPago || "").toLowerCase() === filtroMetodo.toLowerCase())
-        .reduce((sum, p) => sum + p.monto, 0);
-      setTotalMonto(totalFiltrado);
+    let filtrados = pagos;
+
+    if (filtroMetodo !== "Todos") {
+      filtrados = pagos.filter((p) => {
+        const metodo = (p.subMetodoPago || "").toLowerCase();
+
+        // Agrupaciones personalizadas
+        if (filtroMetodo === "Tarjeta") {
+          return ["visa", "mastercard"].includes(metodo);
+        } else if (filtroMetodo === "Transferencia") {
+          return [
+            "nequi",
+            "daviplata",
+            "bancolombia",
+            "bbva",
+            "davivienda",
+            "banco de bogotá",
+          ].includes(metodo);
+        } else {
+          return metodo === filtroMetodo.toLowerCase();
+        }
+      });
     }
+
+    const total = filtrados.reduce((sum, p) => sum + p.monto, 0);
+    setTotalMonto(total);
   }, [filtroMetodo, pagos]);
 
+  // 🔹 Abrir modal
   const abrirModal = (pago) => {
     setPagoSeleccionado(pago);
     setNuevoMonto(String(pago.monto));
@@ -107,6 +130,7 @@ export default function GestionPagos({ navigation }) {
     setModalVisible(true);
   };
 
+  // 🔹 Guardar cambios
   const guardarCambios = async () => {
     if (!pagoSeleccionado) return;
 
@@ -122,6 +146,7 @@ export default function GestionPagos({ navigation }) {
     }
   };
 
+  // 🔹 Render item lista
   const renderItem = ({ item }) => (
     <TouchableOpacity style={styles.pagoItem} onPress={() => abrirModal(item)}>
       <Text style={styles.pagoText}>
@@ -148,7 +173,9 @@ export default function GestionPagos({ navigation }) {
         {/* TOTAL GENERAL CON FILTRO */}
         <View style={styles.totalContainer}>
           <Text style={styles.totalTitle}>Total Recaudado</Text>
-          <Text style={styles.totalAmount}>${totalMonto.toLocaleString("es-CO")}</Text>
+          <Text style={styles.totalAmount}>
+            ${totalMonto.toLocaleString("es-CO")}
+          </Text>
 
           <Picker
             selectedValue={filtroMetodo}
@@ -164,9 +191,24 @@ export default function GestionPagos({ navigation }) {
 
         {/* LISTA DE PAGOS */}
         <FlatList
-          data={pagos.filter((p) =>
-            filtroMetodo === "Todos" || (p.subMetodoPago || "").toLowerCase() === filtroMetodo.toLowerCase()
-          )}
+          data={pagos.filter((p) => {
+            const metodo = (p.subMetodoPago || "").toLowerCase();
+
+            if (filtroMetodo === "Todos") return true;
+            if (filtroMetodo === "Tarjeta")
+              return ["visa", "mastercard"].includes(metodo);
+            if (filtroMetodo === "Transferencia")
+              return [
+                "nequi",
+                "daviplata",
+                "bancolombia",
+                "bbva",
+                "davivienda",
+                "banco de bogotá",
+              ].includes(metodo);
+
+            return metodo === filtroMetodo.toLowerCase();
+          })}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
           scrollEnabled={false}
@@ -245,16 +287,28 @@ export default function GestionPagos({ navigation }) {
   );
 }
 
-// Estilos
+// 🔹 Estilos
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#23252E", padding: 20 },
-  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 20, marginTop: 30 },
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+    marginTop: 30,
+  },
   headerTitle: { color: "#fff", fontSize: 18, fontWeight: "bold" },
-  totalContainer: { backgroundColor: "#23252E", padding: 15, borderRadius: 10, alignItems: "center", marginBottom: 20, borderColor: "#FF9045", borderWidth: 1 },
+  totalContainer: {
+    backgroundColor: "#23252E",
+    padding: 15,
+    borderRadius: 10,
+    alignItems: "center",
+    marginBottom: 20,
+    borderColor: "#FF9045",
+    borderWidth: 1,
+  },
   totalTitle: { color: "#fff", fontSize: 16 },
   totalAmount: { color: "green", fontSize: 22, fontWeight: "bold", marginTop: 5 },
-
-  // 🔥 Picker blanco con texto negro
   picker: {
     height: 50,
     width: 200,
@@ -263,16 +317,49 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginTop: 10,
   },
-
-  pagoItem: { backgroundColor: "#D9D9D9", padding: 12, borderRadius: 8, marginBottom: 10, alignItems: "center" },
+  pagoItem: {
+    backgroundColor: "#D9D9D9",
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 10,
+    alignItems: "center",
+  },
   pagoText: { color: "#23252E", fontSize: 14 },
-  bottomNav: { flexDirection: "row", justifyContent: "space-around", alignItems: "center", backgroundColor: "#23252E", paddingVertical: 10, borderRadius: 12, position: "absolute", bottom: 15, width: "90%", alignSelf: "center" },
-  modalBackground: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center" },
+  bottomNav: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    alignItems: "center",
+    backgroundColor: "#23252E",
+    paddingVertical: 10,
+    borderRadius: 12,
+    position: "absolute",
+    bottom: 15,
+    width: "90%",
+    alignSelf: "center",
+  },
+  modalBackground: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   modalContainer: { width: "80%", backgroundColor: "#fff", borderRadius: 10, padding: 20 },
   modalTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 15 },
   input: { borderWidth: 1, borderColor: "#ccc", borderRadius: 8, padding: 8, marginBottom: 10 },
   modalButtons: { flexDirection: "row", justifyContent: "space-between", marginTop: 10 },
-  modalButtonSave: { backgroundColor: "#e7861fff", padding: 10, borderRadius: 8, width: "45%", alignItems: "center" },
-  modalButtonCancel: { backgroundColor: "#f44336", padding: 10, borderRadius: 8, width: "45%", alignItems: "center" },
+  modalButtonSave: {
+    backgroundColor: "#e7861fff",
+    padding: 10,
+    borderRadius: 8,
+    width: "45%",
+    alignItems: "center",
+  },
+  modalButtonCancel: {
+    backgroundColor: "#f44336",
+    padding: 10,
+    borderRadius: 8,
+    width: "45%",
+    alignItems: "center",
+  },
   modalButtonText: { color: "#fff", fontWeight: "bold" },
 });
