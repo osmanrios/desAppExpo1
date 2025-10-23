@@ -59,9 +59,11 @@ export default function PanelClientes({ navigation }) {
     );
   };
 
+  // --- Cálculo IMC (corregido con conversión de cm a m) ---
   const peso = cliente?.peso ?? 0;
   const altura = cliente?.altura ?? 0;
-  const imc = peso > 0 && altura > 0 ? peso / (altura * altura) : 0;
+  const alturaMetros = altura > 3 ? altura / 100 : altura; // si es mayor a 3, asumimos cm
+  const imc = peso > 0 && alturaMetros > 0 ? peso / (alturaMetros * alturaMetros) : 0;
 
   const getIMCCategory = (imc) => {
     if (imc === 0) return { label: "No disponible", color: "#999999", icon: null };
@@ -73,7 +75,7 @@ export default function PanelClientes({ navigation }) {
 
   const imcCategory = getIMCCategory(imc);
 
-  const getInitial = (name) => name ? name.charAt(0).toUpperCase() : "?";
+  const getInitial = (name) => (name ? name.charAt(0).toUpperCase() : "?");
 
   return (
     <View style={styles.container}>
@@ -145,13 +147,16 @@ export default function PanelClientes({ navigation }) {
             {peso > 0 ? peso : "No disponible"}
           </Text>
           <Text style={styles.infoText}>
-            <Text style={styles.label}>Altura (m): </Text>
-            {altura > 0 ? altura : "No disponible"}
+            <Text style={styles.label}>Altura: </Text>
+            {altura > 0
+              ? `${alturaMetros === altura ? altura + " m" : altura + " cm"}`
+              : "No disponible"}
           </Text>
+
           <View style={styles.imcContainer}>
             <Text style={[styles.infoText, { color: imcCategory.color }]}>
               <Text style={styles.label}>IMC: </Text>
-              {imcCategory.label}
+              {imc > 0 ? imc.toFixed(1) : "No disponible"} ({imcCategory.label})
             </Text>
             {imcCategory.icon && (
               <Icon
