@@ -4,7 +4,6 @@ import { NavigationContainer } from '@react-navigation/native';
 import WelcomeScreen from '../screens/WelcomeScreen';
 import LoginScreen from '../screens/LoginScreen';
 import PanelAdminScreen from '../screens/PanelAdminScreen';
-import RegisterScreen from '../screens/RegisterScreen';
 import RecuperarScreen from '../screens/RecuperarScreen';
 import RegistrarClientesScreen from '../screens/RegistrarClientesScreen';
 import RegistrarMembresiasScreen from '../screens/RegistrarMembresiasScreen';
@@ -33,7 +32,6 @@ export default function AppNavigator() {
         <Stack.Screen name="Bienvenido" component={WelcomeScreen} />
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="PanelAdmin" component={PanelAdminScreen} />
-        <Stack.Screen name="Registrarse" component={RegisterScreen} />
         <Stack.Screen name="Recuperar" component={RecuperarScreen} />
         <Stack.Screen name="RegistrarClientes" component={RegistrarClientesScreen} />
         <Stack.Screen name="RegistrarMembresias" component={RegistrarMembresiasScreen} />
