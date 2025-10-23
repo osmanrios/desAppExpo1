@@ -1,30 +1,37 @@
-import React from 'react';
-import { View, Text, Button, StyleSheet, Image } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, StyleSheet, Image } from 'react-native';
 
 export default function WelcomeScreen({ navigation }) {
-    return (
-        <View style={styles.container}>
-            <View style={styles.img}>
-                <Image
-                    source={require('../../assets/logoappclima.png')}
-                    style={styles.logoImage}
-                />
-            </View>
-            <View>
-                <Text style={styles.title}>¡Bienvenido a la App de Clima!</Text>
-            </View>
-            <View style={styles.logi}>
-                <Button title="Iniciar sesión" onPress={() => navigation.navigate('Login')} />
-            </View>
-            <View style={styles.reg}>
-                <Button title="Registrarse" onPress={() => navigation.navigate('Registrarse')} />
-            </View>
-        </View>
-    );
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      navigation.replace("Login"); // Usa replace para que no pueda volver atrás
+    }, 5000);
+
+    return () => clearTimeout(timer); // Limpia el timer si el componente se desmonta
+  }, [navigation]);
+
+  return (
+    <View style={styles.container}>
+      <Image
+        source={require('../../assets/LogoWOFitGestorX.png')}
+        style={styles.logoImage}
+        resizeMode="contain"
+      />
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-    container: {flex: 1,justifyContent: 'center',alignItems: 'center',backgroundColor: 'rgb(12, 234, 237)',
-    },title: {fontSize: 24,fontWeight: 'bold',marginBottom: 20},img: {marginBottom: 20,},logoImage: {width: 300,height: 300,},
-    logi: {marginBottom: 5,marginTop: 15,width: '100%',},reg: { marginTop: 5,width: '100%',},
+  container: {
+    flex: 1,                // Ocupa toda la pantalla
+    justifyContent: 'center', 
+    alignItems: 'center',
+    backgroundColor: '#23252E', // Fondo blanco (puedes cambiarlo)
+  },
+  logoImage: {
+    width: '100%',   // Ocupa todo el ancho del celular
+    height: '100%',  // Ocupa todo el alto del celular
+  },
 });
+
