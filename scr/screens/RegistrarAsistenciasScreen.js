@@ -91,7 +91,6 @@ export default function RegistrarAsistencias({ navigation }) {
     }
 
     try {
-      // ✅ Validar membresía
       if (!membresiaActiva) {
         Alert.alert("Error", "El cliente no tiene una membresía activa.");
         return;
@@ -101,7 +100,6 @@ export default function RegistrarAsistencias({ navigation }) {
       const [diaInicio, mesInicio, anioInicio] = data.fechaInicio.split("/");
       const fechaInicio = new Date(`${anioInicio}-${mesInicio}-${diaInicio}`);
 
-      // 🔹 Calcular fecha fin según tipo de membresía
       let fechaFin = new Date(fechaInicio);
       if (data.tipoMembresia === "Mensual") {
         fechaFin.setMonth(fechaFin.getMonth() + 1);
@@ -112,13 +110,11 @@ export default function RegistrarAsistencias({ navigation }) {
       }
 
       const hoy = new Date();
-
       if (hoy < fechaInicio || hoy > fechaFin) {
         Alert.alert("Membresía caducada", "La membresía del cliente ha caducado.");
         return;
       }
 
-      // ✅ Registrar asistencia
       await addDoc(collection(db, "Asistencias"), {
         clienteID,
         nombreCliente: cliente,
@@ -157,7 +153,6 @@ export default function RegistrarAsistencias({ navigation }) {
         <Icon name="bell-outline" size={24} color="#fff" />
       </View>
 
-      {/* Contenido Scrollable */}
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
         <View style={styles.iconContainer}>
           <Icon name="clipboard-list" size={70} color="#FF9045" />
@@ -169,7 +164,7 @@ export default function RegistrarAsistencias({ navigation }) {
           <Text style={[styles.inputFlex, { color: cliente ? "#000" : "#aaa" }]}>
             {cliente || "Seleccionar cliente..."}
           </Text>
-          <Icon name="magnify" size={22} color="#FF9045" />
+          <Icon name="magnify" size={22} color="#070707ff" />
         </TouchableOpacity>
 
         {/* Modal búsqueda */}
@@ -223,26 +218,27 @@ export default function RegistrarAsistencias({ navigation }) {
           </View>
         </Modal>
 
-       
-
         {/* Rutina */}
         <Text style={styles.label}>Rutina</Text>
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={rutina}
-            onValueChange={(itemValue) => setRutina(itemValue)}
-            style={styles.picker}
-            dropdownIconColor="#000"
-          >
-            <Picker.Item label="Seleccionar..." value="" />
-            <Picker.Item label="Cardio" value="Cardio" />
-            <Picker.Item label="Fuerza" value="Fuerza" />
-            <Picker.Item label="HIIT" value="HIIT" />
-            <Picker.Item label="Yoga" value="Yoga" />
-          </Picker>
+        <View style={styles.inputIcon}>
+          <View style={{ flex: 1 }}>
+            <Picker
+              selectedValue={rutina}
+              onValueChange={(itemValue) => setRutina(itemValue)}
+              style={styles.pickerInside}
+              dropdownIconColor="#0d0d0dff"
+            >
+              <Picker.Item label="Seleccionar..." value="" />
+              <Picker.Item label="Cardio" value="Cardio" />
+              <Picker.Item label="Fuerza" value="Fuerza" />
+              <Picker.Item label="HIIT" value="HIIT" />
+              <Picker.Item label="Yoga" value="Yoga" />
+            </Picker>
+          </View>
+          
         </View>
 
-        {/* Fecha */}
+        {/* Fecha Asistencia */}
         <Text style={styles.label}>Fecha Asistencia</Text>
         <View style={styles.inputIcon}>
           <TextInput
@@ -253,7 +249,7 @@ export default function RegistrarAsistencias({ navigation }) {
             editable={false}
           />
           <TouchableOpacity onPress={() => setShowPicker(true)}>
-            <Icon name="calendar" size={22} color="#FF9045" />
+            <Icon name="calendar" size={22} color="#100f0fff" />
           </TouchableOpacity>
         </View>
 
@@ -271,18 +267,21 @@ export default function RegistrarAsistencias({ navigation }) {
 
         {/* Entrenador */}
         <Text style={styles.label}>Entrenador</Text>
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={entrenador}
-            onValueChange={(itemValue) => setEntrenador(itemValue)}
-            style={styles.picker}
-            dropdownIconColor="#fff"
-          >
-            <Picker.Item label="Seleccionar..." value="" />
-            <Picker.Item label="Carlos Gómez" value="Carlos Gómez" />
-            <Picker.Item label="Ana Torres" value="Ana Torres" />
-            <Picker.Item label="Luis Ramírez" value="Luis Ramírez" />
-          </Picker>
+        <View style={styles.inputIcon}>
+          <View style={{ flex: 1 }}>
+            <Picker
+              selectedValue={entrenador}
+              onValueChange={(itemValue) => setEntrenador(itemValue)}
+              style={styles.pickerInside}
+              dropdownIconColor="#050505ff"
+            >
+              <Picker.Item label="Seleccionar..." value="" />
+              <Picker.Item label="Carlos Gómez" value="Carlos Gómez" />
+              <Picker.Item label="Ana Torres" value="Ana Torres" />
+              <Picker.Item label="Luis Ramírez" value="Luis Ramírez" />
+            </Picker>
+          </View>
+          
         </View>
 
         {/* Botones */}
@@ -330,12 +329,11 @@ const styles = StyleSheet.create({
   headerTitle: { color: "#fff", fontSize: 18, fontWeight: "bold" },
   iconContainer: { alignItems: "center", marginVertical: 20 },
   label: { color: "#fff", fontSize: 14, marginBottom: 5 },
-  pickerContainer: {
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    marginBottom: 25,
+  pickerInside: {
+    color: "#000",
+    height: 50,
+    width: "100%",
   },
-  picker: { color: "#000", height: 50 },
   inputIcon: {
     flexDirection: "row",
     alignItems: "center",

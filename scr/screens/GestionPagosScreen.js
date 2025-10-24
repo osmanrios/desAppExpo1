@@ -21,14 +21,14 @@ export default function GestionPagos({ navigation }) {
   const [pagoSeleccionado, setPagoSeleccionado] = useState(null);
   const [nuevoMonto, setNuevoMonto] = useState("");
   const [nuevoMetodo, setNuevoMetodo] = useState("");
+  const [nuevoDetalle, setNuevoDetalle] = useState("");
   const [filtroMetodo, setFiltroMetodo] = useState("Todos");
 
-  // 🔹 Métodos con agrupaciones nuevas
   const metodos = [
     "Todos",
     "Efectivo",
-    "Tarjeta",       // Grupo nuevo
-    "Transferencia", // Grupo nuevo
+    "Tarjeta",
+    "Transferencia",
     "Visa",
     "Mastercard",
     "Davivienda",
@@ -49,7 +49,9 @@ export default function GestionPagos({ navigation }) {
           pagosSnapshot.docs.map(async (docSnap) => {
             const data = docSnap.data();
             let monto = data.monto || 0;
-            let subMetodoPago = (data.subMetodoPago || data.metodoPago || "Sin método").trim();
+            let subMetodoPago =
+              (data.subMetodoPago || data.metodoPago || "Sin método").trim();
+            let detalle = data.detalle || "Sin detalle";
 
             let tipoMembresia = "Sin tipo";
             let nombreCliente = "Sin nombre";
@@ -76,6 +78,7 @@ export default function GestionPagos({ navigation }) {
               subMetodoPago,
               tipoMembresia,
               nombreCliente,
+              detalle, // 👈 nuevo campo
             };
           })
         );
@@ -99,8 +102,6 @@ export default function GestionPagos({ navigation }) {
     if (filtroMetodo !== "Todos") {
       filtrados = pagos.filter((p) => {
         const metodo = (p.subMetodoPago || "").toLowerCase();
-
-        // Agrupaciones personalizadas
         if (filtroMetodo === "Tarjeta") {
           return ["visa", "mastercard"].includes(metodo);
         } else if (filtroMetodo === "Transferencia") {
@@ -127,6 +128,7 @@ export default function GestionPagos({ navigation }) {
     setPagoSeleccionado(pago);
     setNuevoMonto(String(pago.monto));
     setNuevoMetodo(pago.subMetodoPago);
+    setNuevoDetalle(pago.detalle || "");
     setModalVisible(true);
   };
 
@@ -139,6 +141,7 @@ export default function GestionPagos({ navigation }) {
       await updateDoc(ref, {
         monto: parseFloat(nuevoMonto) || 0,
         metodoPago: nuevoMetodo,
+        detalle: nuevoDetalle,
       });
       setModalVisible(false);
     } catch (error) {
@@ -157,10 +160,7 @@ export default function GestionPagos({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 150 }}
-      >
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 150 }}>
         {/* ENCABEZADO */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
@@ -189,7 +189,26 @@ export default function GestionPagos({ navigation }) {
           </Picker>
         </View>
 
-        {/* LISTA DE PAGOS */}
+        {/* BOTONES */}
+        <View style={styles.buttonsContainer}>
+          <TouchableOpacity
+            style={styles.registerBtn}
+            onPress={() => navigation.navigate("RegistrarPagos")}
+          >
+            <Text style={styles.registerText}>Registrar Pagos</Text>
+          </TouchableOpacity>
+
+          <View style={styles.listBtn}>
+            <Text style={styles.listText}>Listar Pagos</Text>
+          </View>
+        </View>
+         <View style={styles.separatorContainer}>
+                  <View style={styles.line} />
+                  <Text style={styles.separatorText}>O</Text>
+                  <View style={styles.line} />
+                </View>
+
+        {/* LISTA */}
         <FlatList
           data={pagos.filter((p) => {
             const metodo = (p.subMetodoPago || "").toLowerCase();
@@ -234,7 +253,7 @@ export default function GestionPagos({ navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* MODAL PARA EDITAR PAGOS */}
+      {/* MODAL */}
       <Modal visible={modalVisible} transparent animationType="slide">
         <View style={styles.modalBackground}>
           <View style={styles.modalContainer}>
@@ -269,6 +288,16 @@ export default function GestionPagos({ navigation }) {
               style={styles.input}
             />
 
+            {/* 👇 NUEVO CAMPO DETALLE */}
+            <Text>Detalle:</Text>
+            <TextInput
+              value={nuevoDetalle}
+              onChangeText={setNuevoDetalle}
+              multiline
+              numberOfLines={3}
+              style={[styles.input, { height: 70, textAlignVertical: "top" }]}
+            />
+
             <View style={styles.modalButtons}>
               <TouchableOpacity onPress={guardarCambios} style={styles.modalButtonSave}>
                 <Text style={styles.modalButtonText}>Guardar</Text>
@@ -287,7 +316,6 @@ export default function GestionPagos({ navigation }) {
   );
 }
 
-// 🔹 Estilos
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#23252E", padding: 20 },
   header: {
@@ -348,7 +376,7 @@ const styles = StyleSheet.create({
   input: { borderWidth: 1, borderColor: "#ccc", borderRadius: 8, padding: 8, marginBottom: 10 },
   modalButtons: { flexDirection: "row", justifyContent: "space-between", marginTop: 10 },
   modalButtonSave: {
-    backgroundColor: "#e7861fff",
+    backgroundColor: "#FF9045",
     padding: 10,
     borderRadius: 8,
     width: "45%",
@@ -362,4 +390,32 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   modalButtonText: { color: "#fff", fontWeight: "bold" },
+  buttonsContainer: { alignItems: "center", marginBottom: 20 },
+  registerBtn: {
+    backgroundColor: "#FF9045",
+    borderWidth: 1,
+    borderColor: "#FF9045",
+    paddingVertical: 12,
+    paddingHorizontal: 40,
+    borderRadius: 8,
+    marginBottom: 15,
+  },
+  registerText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
+  listBtn: {
+    backgroundColor: "#23252E",
+    borderWidth: 1,
+    borderColor: "#FF9045",
+    paddingVertical: 12,
+    paddingHorizontal: 40,
+    borderRadius: 8,
+  },
+  listText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
+   separatorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: 10,
+  },
+  line: { flex: 1, height: 1, backgroundColor: "#fff", marginHorizontal: 10 },
+  separatorText: { color: "#fff", fontSize: 20, fontWeight: "bold" },
 });
