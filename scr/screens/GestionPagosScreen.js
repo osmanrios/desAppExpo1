@@ -188,6 +188,11 @@ export default function GestionPagos({ navigation }) {
             ))}
           </Picker>
         </View>
+        <View style={styles.separatorContainer}>
+                  <View style={styles.line} />
+                  <Text style={styles.separatorText}>O</Text>
+                  <View style={styles.line} />
+                </View>
 
         {/* BOTONES */}
         <View style={styles.buttonsContainer}>
@@ -202,11 +207,7 @@ export default function GestionPagos({ navigation }) {
             <Text style={styles.listText}>Listar Pagos</Text>
           </View>
         </View>
-         <View style={styles.separatorContainer}>
-                  <View style={styles.line} />
-                  <Text style={styles.separatorText}>O</Text>
-                  <View style={styles.line} />
-                </View>
+         
 
         {/* LISTA */}
         <FlatList
