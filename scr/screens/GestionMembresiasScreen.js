@@ -30,10 +30,14 @@ export default function GestionMembresias({ navigation }) {
     const fetchMembresias = async () => {
       try {
         const querySnapshot = await getDocs(collection(db, "Membresias"));
-        const data = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+        const data = querySnapshot.docs
+          .map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          }))
+          // 🔽 Invertimos el orden para que el último quede primero
+          .reverse();
+
         setMembresias(data);
       } catch (error) {
         console.error("Error al obtener membresías:", error);
@@ -187,7 +191,6 @@ export default function GestionMembresias({ navigation }) {
               <Picker.Item label="Anual" value="Anual" />
             </Picker>
 
-            {/* Fecha de inicio solo lectura */}
             <Text style={styles.modalLabel}>Fecha de Inicio</Text>
             <View style={[styles.input, { backgroundColor: "#ddd" }]}>
               <Text style={{ color: "#555" }}>
@@ -195,7 +198,6 @@ export default function GestionMembresias({ navigation }) {
               </Text>
             </View>
 
-            {/* Fecha de fin editable */}
             <Text style={styles.modalLabel}>Fecha de Fin</Text>
             <TouchableOpacity
               style={styles.input}
@@ -363,10 +365,24 @@ const styles = StyleSheet.create({
   },
   line: { flex: 1, height: 1, backgroundColor: "#fff", marginHorizontal: 10 },
   separatorText: { color: "#fff", fontSize: 20, fontWeight: "bold" },
-  
- buttonsContainer: { alignItems: "center", marginBottom: 20 },
-  registerBtn: { backgroundColor: "#FF9045", borderWidth: 1, borderColor: "#FF9045", paddingVertical: 12, paddingHorizontal: 40, borderRadius: 8, marginBottom: 15 },
+  buttonsContainer: { alignItems: "center", marginBottom: 20 },
+  registerBtn: {
+    backgroundColor: "#FF9045",
+    borderWidth: 1,
+    borderColor: "#FF9045",
+    paddingVertical: 12,
+    paddingHorizontal: 40,
+    borderRadius: 8,
+    marginBottom: 15,
+  },
   registerText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
-  listBtn: { backgroundColor: "#23252E", borderWidth: 1, borderColor: "#FF9045", paddingVertical: 12, paddingHorizontal: 40, borderRadius: 8 },
+  listBtn: {
+    backgroundColor: "#23252E",
+    borderWidth: 1,
+    borderColor: "#FF9045",
+    paddingVertical: 12,
+    paddingHorizontal: 40,
+    borderRadius: 8,
+  },
   listText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
 });

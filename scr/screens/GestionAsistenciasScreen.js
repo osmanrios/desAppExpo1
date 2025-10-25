@@ -13,7 +13,7 @@ import {
 import DateTimePicker from "@react-native-community/datetimepicker";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { Picker } from "@react-native-picker/picker";
-import { collection, getDocs, doc, getDoc, updateDoc } from "firebase/firestore";
+import { collection, doc, getDoc, updateDoc, onSnapshot } from "firebase/firestore";
 import { db } from "../screens/firebase/firebaseConfig";
 
 // --- Convierte distintos tipos a Date
@@ -60,14 +60,15 @@ export default function GestionAsistencias({ navigation }) {
   const rutinasDisponibles = ["Cardio", "Fuerza", "Yoga"];
   const entrenadoresDisponibles = ["Carlos Gómez", "Ana Torres", "Luis Ramírez"];
 
+  // 🔥 Escucha en tiempo real los cambios en Firestore
   useEffect(() => {
-    const fetchAsistencias = async () => {
+    const unsubscribe = onSnapshot(collection(db, "Asistencias"), async (snapshot) => {
       try {
-        const snapshot = await getDocs(collection(db, "Asistencias"));
         let asistenciasConInfo = [];
 
         for (const asistenciaDoc of snapshot.docs) {
           const asistenciaData = asistenciaDoc.data();
+
           const fechaRaw =
             asistenciaData.fecha ||
             asistenciaData.fechaAsistencia ||
@@ -105,11 +106,11 @@ export default function GestionAsistencias({ navigation }) {
           });
         }
 
+        // Ordenar: más recientes primero
         asistenciasConInfo.sort((a, b) => {
-          if (!a.fecha && !b.fecha) return 0;
-          if (!a.fecha) return 1;
-          if (!b.fecha) return -1;
-          return b.fecha - a.fecha;
+          const fechaA = a.fecha instanceof Date ? a.fecha.getTime() : 0;
+          const fechaB = b.fecha instanceof Date ? b.fecha.getTime() : 0;
+          return fechaB - fechaA;
         });
 
         setAsistencias(asistenciasConInfo);
@@ -119,12 +120,13 @@ export default function GestionAsistencias({ navigation }) {
         console.error("❌ Error al cargar asistencias:", error);
         setLoading(false);
       }
-    };
+    });
 
-    fetchAsistencias();
+    // Limpieza del listener al desmontar
+    return () => unsubscribe();
   }, []);
 
-  // 🔧 Corregido con normalización
+  // Abrir modal para editar
   const abrirModal = (asistencia) => {
     if (!asistencia) return;
 
@@ -151,6 +153,7 @@ export default function GestionAsistencias({ navigation }) {
     setModalVisible(true);
   };
 
+  // Guardar cambios editados
   const guardarCambios = async () => {
     if (!selectedAsistencia) return;
     try {
@@ -164,19 +167,6 @@ export default function GestionAsistencias({ navigation }) {
 
       alert("✅ Asistencia actualizada correctamente");
       setModalVisible(false);
-
-      setAsistencias((prev) =>
-        prev.map((a) =>
-          a.id === selectedAsistencia.id
-            ? {
-                ...a,
-                rutina: formData.rutina,
-                entrenador: formData.entrenador,
-                fecha: parseToDate(fechaString),
-              }
-            : a
-        )
-      );
     } catch (error) {
       console.error("❌ Error al actualizar asistencia:", error);
       alert("Error al actualizar asistencia. Revisa la consola.");
@@ -253,6 +243,7 @@ export default function GestionAsistencias({ navigation }) {
         ))}
       </ScrollView>
 
+      {/* Modal para editar asistencia */}
       <Modal visible={modalVisible} animationType="slide" transparent>
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
@@ -323,6 +314,7 @@ export default function GestionAsistencias({ navigation }) {
         </View>
       </Modal>
 
+      {/* Barra inferior */}
       <View style={styles.bottomNav}>
         <TouchableOpacity onPress={() => navigation.navigate("PanelAdmin")}>
           <Icon name="home-outline" size={28} color="#fff" />
