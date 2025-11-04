@@ -124,7 +124,7 @@ export default function RegistrarAsistencias({ navigation }) {
         createdAt: new Date(),
       });
 
-      Alert.alert("Éxito", "Asistencia registrada correctamente.");
+      Alert.alert("✅ Éxito", "Asistencia registrada correctamente.");
       setCliente("");
       setClienteID(null);
       setRutina("");

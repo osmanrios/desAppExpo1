@@ -89,7 +89,7 @@ export default function RegistrarMembresiasScreen({ navigation }) {
         estado,
       });
 
-      Alert.alert("Éxito", "Membresía registrada correctamente.");
+      Alert.alert(  "✅ Éxito", "Membresía registrada correctamente.");
       // Limpiar formulario
       setNombreCliente("");
       setClienteID(null);

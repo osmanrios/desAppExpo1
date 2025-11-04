@@ -39,6 +39,18 @@ export default function GestionPagos({ navigation }) {
     "Bancolombia",
   ];
 
+  const subMetodos = [
+    "Efectivo",
+    "Visa",
+    "Mastercard",
+    "BBVA",
+    "Davivienda",
+    "Banco de Bogotá",
+    "Nequi",
+    "Daviplata",
+    "Bancolombia",
+  ];
+
   // 🔹 Cargar pagos desde Firebase
   useEffect(() => {
     const fetchPagos = async () => {
@@ -55,6 +67,18 @@ export default function GestionPagos({ navigation }) {
 
             let tipoMembresia = "Sin tipo";
             let nombreCliente = "Sin nombre";
+
+            // 🔸 Fecha como DD/MM/YYYY
+            let fechaPago = "Sin fecha";
+            let fechaTimestamp = 0;
+            if (data.fechaPago) {
+              const fecha = new Date(data.fechaPago.seconds * 1000);
+              const dia = String(fecha.getDate()).padStart(2, "0");
+              const mes = String(fecha.getMonth() + 1).padStart(2, "0");
+              const anio = fecha.getFullYear();
+              fechaPago = `${dia}/${mes}/${anio}`;
+              fechaTimestamp = fecha.getTime();
+            }
 
             if (data.membresiaID) {
               const memRef = doc(db, "Membresias", data.membresiaID);
@@ -78,14 +102,23 @@ export default function GestionPagos({ navigation }) {
               subMetodoPago,
               tipoMembresia,
               nombreCliente,
-              detalle, // 👈 nuevo campo
+              detalle,
+              fechaPago,
+              fechaTimestamp,
             };
           })
         );
 
-        setPagos(pagosConInfo);
+        // 🔹 Ordenar por fecha (más recientes primero)
+        const pagosOrdenados = pagosConInfo.sort(
+          (a, b) => b.fechaTimestamp - a.fechaTimestamp
+        );
 
-        const totalGeneral = pagosConInfo.reduce((sum, p) => sum + p.monto, 0);
+        setPagos(pagosOrdenados);
+        const totalGeneral = pagosOrdenados.reduce(
+          (sum, p) => sum + p.monto,
+          0
+        );
         setTotalMonto(totalGeneral);
       } catch (error) {
         console.error("❌ Error al cargar pagos:", error);
@@ -102,17 +135,17 @@ export default function GestionPagos({ navigation }) {
     if (filtroMetodo !== "Todos") {
       filtrados = pagos.filter((p) => {
         const metodo = (p.subMetodoPago || "").toLowerCase();
+
         if (filtroMetodo === "Tarjeta") {
-          return ["visa", "mastercard"].includes(metodo);
-        } else if (filtroMetodo === "Transferencia") {
           return [
-            "nequi",
-            "daviplata",
-            "bancolombia",
+            "visa",
+            "mastercard",
             "bbva",
             "davivienda",
             "banco de bogotá",
           ].includes(metodo);
+        } else if (filtroMetodo === "Transferencia") {
+          return ["nequi", "daviplata", "bancolombia"].includes(metodo);
         } else {
           return metodo === filtroMetodo.toLowerCase();
         }
@@ -141,6 +174,7 @@ export default function GestionPagos({ navigation }) {
       await updateDoc(ref, {
         monto: parseFloat(nuevoMonto) || 0,
         metodoPago: nuevoMetodo,
+        subMetodoPago: nuevoMetodo,
         detalle: nuevoDetalle,
       });
       setModalVisible(false);
@@ -153,21 +187,25 @@ export default function GestionPagos({ navigation }) {
   const renderItem = ({ item }) => (
     <TouchableOpacity style={styles.pagoItem} onPress={() => abrirModal(item)}>
       <Text style={styles.pagoText}>
-        ${item.monto} - {item.subMetodoPago}
+        ${item.monto.toLocaleString("es-CO")} - {item.subMetodoPago}
       </Text>
+      <Text style={styles.fechaText}> {item.fechaPago}</Text>
     </TouchableOpacity>
   );
 
   return (
     <View style={styles.container}>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 150 }}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 150 }}
+      >
         {/* ENCABEZADO */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Icon name="arrow-left" size={24} color="#fff" />
+            <Icon name="" size={24} color="#fff" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Gestión Pagos</Text>
-          <Icon name="currency-usd" size={24} color="#fff" />
+          <Icon name="" size={24} color="#fff" />
         </View>
 
         {/* TOTAL GENERAL CON FILTRO */}
@@ -188,11 +226,6 @@ export default function GestionPagos({ navigation }) {
             ))}
           </Picker>
         </View>
-        <View style={styles.separatorContainer}>
-                  <View style={styles.line} />
-                  <Text style={styles.separatorText}>O</Text>
-                  <View style={styles.line} />
-                </View>
 
         {/* BOTONES */}
         <View style={styles.buttonsContainer}>
@@ -207,28 +240,28 @@ export default function GestionPagos({ navigation }) {
             <Text style={styles.listText}>Listar Pagos</Text>
           </View>
         </View>
-         
 
         {/* LISTA */}
         <FlatList
-          data={pagos.filter((p) => {
-            const metodo = (p.subMetodoPago || "").toLowerCase();
+          data={pagos
+            .filter((p) => {
+              const metodo = (p.subMetodoPago || "").toLowerCase();
 
-            if (filtroMetodo === "Todos") return true;
-            if (filtroMetodo === "Tarjeta")
-              return ["visa", "mastercard"].includes(metodo);
-            if (filtroMetodo === "Transferencia")
-              return [
-                "nequi",
-                "daviplata",
-                "bancolombia",
-                "bbva",
-                "davivienda",
-                "banco de bogotá",
-              ].includes(metodo);
+              if (filtroMetodo === "Todos") return true;
+              if (filtroMetodo === "Tarjeta")
+                return [
+                  "visa",
+                  "mastercard",
+                  "bbva",
+                  "davivienda",
+                  "banco de bogotá",
+                ].includes(metodo);
+              if (filtroMetodo === "Transferencia")
+                return ["nequi", "daviplata", "bancolombia"].includes(metodo);
 
-            return metodo === filtroMetodo.toLowerCase();
-          })}
+              return metodo === filtroMetodo.toLowerCase();
+            })
+            .sort((a, b) => b.fechaTimestamp - a.fechaTimestamp)}
           keyExtractor={(item) => item.id}
           renderItem={renderItem}
           scrollEnabled={false}
@@ -243,13 +276,17 @@ export default function GestionPagos({ navigation }) {
         <TouchableOpacity onPress={() => navigation.navigate("GestionClientes")}>
           <Icon name="account-group" size={28} color="#fff" />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => navigation.navigate("GestionMembresias")}>
+        <TouchableOpacity
+          onPress={() => navigation.navigate("GestionMembresias")}
+        >
           <Icon name="card-account-details" size={28} color="#fff" />
         </TouchableOpacity>
         <TouchableOpacity onPress={() => navigation.navigate("GestionPagos")}>
           <Icon name="currency-usd" size={28} color="#FF9045" />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => navigation.navigate("GestionAsistencias")}>
+        <TouchableOpacity
+          onPress={() => navigation.navigate("GestionAsistencias")}
+        >
           <Icon name="clipboard-list" size={28} color="#fff" />
         </TouchableOpacity>
       </View>
@@ -282,14 +319,27 @@ export default function GestionPagos({ navigation }) {
               style={styles.input}
             />
 
-            <Text>SubMétodo de Pago:</Text>
+            <Text>Fecha de Pago:</Text>
             <TextInput
-              value={nuevoMetodo}
-              onChangeText={setNuevoMetodo}
-              style={styles.input}
+              value={pagoSeleccionado?.fechaPago}
+              editable={false}
+              style={[styles.input, { backgroundColor: "#eee" }]}
             />
 
-            {/* 👇 NUEVO CAMPO DETALLE */}
+            <Text>Submétodo de Pago:</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={nuevoMetodo}
+                style={styles.picker}
+                dropdownIconColor="#000"
+                onValueChange={(value) => setNuevoMetodo(value)}
+              >
+                {subMetodos.map((m) => (
+                  <Picker.Item key={m} label={m} value={m} />
+                ))}
+              </Picker>
+            </View>
+
             <Text>Detalle:</Text>
             <TextInput
               value={nuevoDetalle}
@@ -300,7 +350,10 @@ export default function GestionPagos({ navigation }) {
             />
 
             <View style={styles.modalButtons}>
-              <TouchableOpacity onPress={guardarCambios} style={styles.modalButtonSave}>
+              <TouchableOpacity
+                onPress={guardarCambios}
+                style={styles.modalButtonSave}
+              >
                 <Text style={styles.modalButtonText}>Guardar</Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -317,6 +370,7 @@ export default function GestionPagos({ navigation }) {
   );
 }
 
+// 🎨 ESTILOS
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#23252E", padding: 20 },
   header: {
@@ -337,14 +391,26 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   totalTitle: { color: "#fff", fontSize: 16 },
-  totalAmount: { color: "green", fontSize: 22, fontWeight: "bold", marginTop: 5 },
+  totalAmount: {
+    color: "green",
+    fontSize: 22,
+    fontWeight: "bold",
+    marginTop: 5,
+  },
   picker: {
     height: 50,
-    width: 200,
+    width: "100%",
     color: "#000",
     backgroundColor: "#fff",
     borderRadius: 8,
     marginTop: 10,
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    marginBottom: 10,
+    overflow: "hidden",
   },
   pagoItem: {
     backgroundColor: "#D9D9D9",
@@ -353,7 +419,8 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     alignItems: "center",
   },
-  pagoText: { color: "#23252E", fontSize: 14 },
+  pagoText: { color: "#23252E", fontSize: 15, fontWeight: "600" },
+  fechaText: { color: "#555", fontSize: 13, marginTop: 3 },
   bottomNav: {
     flexDirection: "row",
     justifyContent: "space-around",
@@ -372,10 +439,25 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  modalContainer: { width: "80%", backgroundColor: "#fff", borderRadius: 10, padding: 20 },
+  modalContainer: {
+    width: "85%",
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    padding: 20,
+  },
   modalTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 15 },
-  input: { borderWidth: 1, borderColor: "#ccc", borderRadius: 8, padding: 8, marginBottom: 10 },
-  modalButtons: { flexDirection: "row", justifyContent: "space-between", marginTop: 10 },
+  input: {
+    borderWidth: 1,
+    borderColor: "#ccc",
+    borderRadius: 8,
+    padding: 8,
+    marginBottom: 10,
+  },
+  modalButtons: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 10,
+  },
   modalButtonSave: {
     backgroundColor: "#FF9045",
     padding: 10,
@@ -411,12 +493,4 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   listText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
-   separatorContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginVertical: 10,
-  },
-  line: { flex: 1, height: 1, backgroundColor: "#fff", marginHorizontal: 10 },
-  separatorText: { color: "#fff", fontSize: 20, fontWeight: "bold" },
 });

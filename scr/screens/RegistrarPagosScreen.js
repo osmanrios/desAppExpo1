@@ -108,7 +108,7 @@ export default function RegistrarPagos({ navigation }) {
         createdAt: Timestamp.now(),
       });
 
-      Alert.alert("Éxito", "Pago registrado correctamente");
+      Alert.alert("✅ Éxito", "Pago registrado correctamente");
       setMembresia("");
       setNombreCliente("");
       setMonto("");

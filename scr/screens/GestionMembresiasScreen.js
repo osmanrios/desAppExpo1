@@ -25,6 +25,7 @@ export default function GestionMembresias({ navigation }) {
   const [tipoMembresia, setTipoMembresia] = useState("");
   const [mostrarCalendario, setMostrarCalendario] = useState(false);
   const [busqueda, setBusqueda] = useState("");
+  const [filtroTipo, setFiltroTipo] = useState("");
 
   useEffect(() => {
     const fetchMembresias = async () => {
@@ -35,7 +36,6 @@ export default function GestionMembresias({ navigation }) {
             id: doc.id,
             ...doc.data(),
           }))
-          // 🔽 Invertimos el orden para que el último quede primero
           .reverse();
 
         setMembresias(data);
@@ -48,14 +48,6 @@ export default function GestionMembresias({ navigation }) {
 
     fetchMembresias();
   }, []);
-
-  const total = membresias.length;
-  const activas = membresias.filter(
-    (m) => m.estado?.toLowerCase() === "activa"
-  ).length;
-  const inactivas = membresias.filter(
-    (m) => m.estado?.toLowerCase() === "inactiva"
-  ).length;
 
   const abrirModalEdicion = (membresia) => {
     setMembresiaSeleccionada(membresia);
@@ -93,9 +85,23 @@ export default function GestionMembresias({ navigation }) {
     }
   };
 
-  const membresiasFiltradas = membresias.filter((m) =>
-    m.nombreCliente?.toLowerCase().includes(busqueda.toLowerCase())
-  );
+  // 🔹 Filtro combinado (nombre + tipo)
+  const membresiasFiltradas = membresias.filter((m) => {
+    const coincideNombre = m.nombreCliente
+      ?.toLowerCase()
+      .includes(busqueda.toLowerCase());
+    const coincideTipo = filtroTipo ? m.tipoMembresia === filtroTipo : true;
+    return coincideNombre && coincideTipo;
+  });
+
+  // 🔹 Contadores que dependen del filtro
+  const total = membresiasFiltradas.length;
+  const activas = membresiasFiltradas.filter(
+    (m) => m.estado?.toLowerCase() === "activa"
+  ).length;
+  const inactivas = membresiasFiltradas.filter(
+    (m) => m.estado?.toLowerCase() === "inactiva"
+  ).length;
 
   return (
     <View style={styles.container}>
@@ -136,6 +142,20 @@ export default function GestionMembresias({ navigation }) {
           <View style={styles.listBtn}>
             <Text style={styles.listText}>Listar Membresías</Text>
           </View>
+        </View>
+
+        {/* 🔹 Filtro centrado */}
+        <View style={styles.filterContainer}>
+          <Picker
+            selectedValue={filtroTipo}
+            onValueChange={(itemValue) => setFiltroTipo(itemValue)}
+            style={styles.filterPicker}
+          >
+            <Picker.Item label="Tipo Membresía" value="" />
+            <Picker.Item label="Mensual" value="Mensual" />
+            <Picker.Item label="Trimestral" value="Trimestral" />
+            <Picker.Item label="Anual" value="Anual" />
+          </Picker>
         </View>
 
         {/* Buscador */}
@@ -289,11 +309,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderRadius: 8,
     paddingHorizontal: 5,
-    marginBottom: 15,
+    marginBottom: 10,
     backgroundColor: "#fff",
-    marginTop: 10,
   },
   searchInput: { flex: 1, color: "#000", paddingVertical: 8, fontSize: 15 },
+  filterContainer: {
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    marginBottom: 10,
+    width: 195,
+    alignSelf: "center",
+    justifyContent: "center",
+  },
+  filterPicker: {
+    color: "#000",
+    height: 50,
+  },
   itemBox: {
     backgroundColor: "#e0e0e0",
     padding: 12,
