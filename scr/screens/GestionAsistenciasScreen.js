@@ -1,18 +1,12 @@
 import React, { useState, useEffect } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  Modal,
-  TextInput,
-  Button,
-  ActivityIndicator,
+  View, Text, StyleSheet, TouchableOpacity, ScrollView,
+  Modal, TextInput, ActivityIndicator,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import { Picker } from "@react-native-picker/picker";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { collection, doc, getDoc, updateDoc, onSnapshot } from "firebase/firestore";
 import { db } from "../screens/firebase/firebaseConfig";
 
@@ -24,24 +18,20 @@ const parseToDate = (value) => {
     if (!isNaN(value) && typeof value !== "object") return new Date(Number(value));
     if (typeof value === "string") {
       const s = value.trim();
-      const reDMY = /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/;
-      const m = s.match(reDMY);
+      const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
       if (m) return new Date(parseInt(m[3], 10), parseInt(m[2], 10) - 1, parseInt(m[1], 10));
       const iso = new Date(s);
       if (!isNaN(iso.getTime())) return iso;
     }
     return null;
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 };
 
 const formatDate = (date) => {
   if (!(date instanceof Date) || isNaN(date.getTime())) return "Sin fecha";
   const dd = String(date.getDate()).padStart(2, "0");
   const mm = String(date.getMonth() + 1).padStart(2, "0");
-  const yyyy = date.getFullYear();
-  return `${dd}/${mm}/${yyyy}`;
+  return `${dd}/${mm}/${date.getFullYear()}`;
 };
 
 export default function GestionAsistencias({ navigation }) {
@@ -53,10 +43,45 @@ export default function GestionAsistencias({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [filtroRutina, setFiltroRutina] = useState("");
+  const [modoOscuro, setModoOscuro] = useState(false);
+
+  // 🔹 CARGAR TEMA GUARDADO
+  useEffect(() => {
+    const cargarTema = async () => {
+      try {
+        const temaGuardado = await AsyncStorage.getItem("modoOscuro");
+        if (temaGuardado !== null) setModoOscuro(JSON.parse(temaGuardado));
+      } catch (e) { console.error(e); }
+    };
+    cargarTema();
+  }, []);
+
+  // 🔹 TOGGLE CON PERSISTENCIA
+  const toggleTema = async () => {
+    try {
+      const nuevo = !modoOscuro;
+      setModoOscuro(nuevo);
+      await AsyncStorage.setItem("modoOscuro", JSON.stringify(nuevo));
+    } catch (e) { console.error(e); }
+  };
+
+  const tema = {
+    fondo: modoOscuro ? "#23252E" : "#f4f4f4",
+    texto: modoOscuro ? "#fff" : "#181B3A",
+    subtexto: modoOscuro ? "#aaa" : "#666",
+    card: modoOscuro ? "#2e3038" : "#fff",
+    border: modoOscuro ? "#3a3d46" : "#ddd",
+    input: modoOscuro ? "#2e3038" : "#fff",
+    inputText: modoOscuro ? "#fff" : "#000",
+    nav: modoOscuro ? "#2e3038" : "#fff",
+    item: modoOscuro ? "#2e3038" : "#fff",
+    modal: modoOscuro ? "#2e3038" : "#fff",
+  };
 
   const rutinasDisponibles = ["Cardio", "Fuerza", "HIIT", "Yoga"];
   const entrenadoresDisponibles = ["Carlos Gómez", "Ana Torres", "Luis Ramírez"];
 
+  // 🔹 CARGAR ASISTENCIAS
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, "Asistencias"), async (snapshot) => {
       try {
@@ -64,34 +89,19 @@ export default function GestionAsistencias({ navigation }) {
 
         for (const asistenciaDoc of snapshot.docs) {
           const asistenciaData = asistenciaDoc.data();
-
-          const fechaRaw =
-            asistenciaData.fecha ||
-            asistenciaData.fechaAsistencia ||
-            asistenciaData.dia ||
-            asistenciaData.date ||
-            null;
-          const fechaParsed = parseToDate(fechaRaw);
-          const fechaFinal = fechaParsed || null;
+          const fechaRaw = asistenciaData.fecha || asistenciaData.fechaAsistencia || asistenciaData.dia || asistenciaData.date || null;
+          const fechaFinal = parseToDate(fechaRaw) || null;
 
           let nombreCliente = asistenciaData.nombreCliente || "Sin nombre";
-          const clienteID =
-            asistenciaData.clienteID || asistenciaData.userId || asistenciaData.uid;
+          const clienteID = asistenciaData.clienteID || asistenciaData.userId || asistenciaData.uid;
           if (clienteID && !asistenciaData.nombreCliente) {
             try {
-              const clienteRef = doc(db, "Usuarios", clienteID);
-              const clienteSnap = await getDoc(clienteRef);
+              const clienteSnap = await getDoc(doc(db, "Usuarios", clienteID));
               if (clienteSnap.exists()) {
-                const clienteData = clienteSnap.data();
-                nombreCliente =
-                  clienteData.nombre ||
-                  clienteData.name ||
-                  clienteData.fullName ||
-                  nombreCliente;
+                const d = clienteSnap.data();
+                nombreCliente = d.nombre || d.name || d.fullName || nombreCliente;
               }
-            } catch (err) {
-              console.log("⚠️ Error obteniendo cliente:", err);
-            }
+            } catch (err) { console.log("⚠️ Error obteniendo cliente:", err); }
           }
 
           asistenciasConInfo.push({
@@ -102,11 +112,17 @@ export default function GestionAsistencias({ navigation }) {
           });
         }
 
-        asistenciasConInfo.sort((a, b) => {
-          const fechaA = a.fecha instanceof Date ? a.fecha.getTime() : 0;
-          const fechaB = b.fecha instanceof Date ? b.fecha.getTime() : 0;
-          return fechaB - fechaA;
-        });
+        // 🔹 SORT MEJORADO: maneja Date y string "dd/mm/yyyy"
+        const toTimestamp = (fecha) => {
+          if (fecha instanceof Date && !isNaN(fecha.getTime())) return fecha.getTime();
+          if (typeof fecha === "string") {
+            const parsed = parseToDate(fecha);
+            return parsed ? parsed.getTime() : 0;
+          }
+          return 0;
+        };
+
+        asistenciasConInfo.sort((a, b) => toTimestamp(b.fecha) - toTimestamp(a.fecha));
 
         setAsistencias(asistenciasConInfo);
         setLoading(false);
@@ -115,180 +131,170 @@ export default function GestionAsistencias({ navigation }) {
         setLoading(false);
       }
     });
-
     return () => unsubscribe();
   }, []);
 
   const abrirModal = (asistencia) => {
     if (!asistencia) return;
-    const fechaValida =
-      asistencia.fecha instanceof Date
-        ? asistencia.fecha
-        : parseToDate(asistencia.fecha) || new Date();
-
+    const fechaValida = asistencia.fecha instanceof Date ? asistencia.fecha : parseToDate(asistencia.fecha) || new Date();
     const rutinaNormalizada = (() => {
       if (!asistencia.rutina) return "";
       const r = asistencia.rutina.trim().toLowerCase();
-      const encontrada = rutinasDisponibles.find(
-        (opt) => opt.trim().toLowerCase() === r
-      );
-      return encontrada || "";
+      return rutinasDisponibles.find((opt) => opt.trim().toLowerCase() === r) || "";
     })();
-
     setSelectedAsistencia(asistencia);
-    setFormData({
-      rutina: rutinaNormalizada,
-      entrenador: asistencia.entrenador || "",
-      fecha: fechaValida,
-    });
+    setFormData({ rutina: rutinaNormalizada, entrenador: asistencia.entrenador || "", fecha: fechaValida });
     setModalVisible(true);
   };
 
   const guardarCambios = async () => {
     if (!selectedAsistencia) return;
     try {
-      const asistenciaRef = doc(db, "Asistencias", selectedAsistencia.id);
-      const fechaString = formatDate(formData.fecha);
-      await updateDoc(asistenciaRef, {
+      await updateDoc(doc(db, "Asistencias", selectedAsistencia.id), {
         rutina: formData.rutina,
         entrenador: formData.entrenador,
-        fecha: fechaString,
+        fecha: formatDate(formData.fecha),
       });
-
-      alert("✅ Asistencia actualizada correctamente");
       setModalVisible(false);
-    } catch (error) {
-      console.error("❌ Error al actualizar asistencia:", error);
-      alert("Error al actualizar asistencia. Revisa la consola.");
-    }
+    } catch (error) { console.error("❌ Error al actualizar asistencia:", error); }
   };
 
   const asistenciasFiltradas = asistencias.filter((item) => {
-    const coincideRutina = filtroRutina
-      ? item.rutina?.toLowerCase() === filtroRutina.toLowerCase()
-      : true;
-    const coincideBusqueda = item.nombreCliente
-      ?.toLowerCase()
-      .includes(searchQuery.toLowerCase());
+    const coincideRutina = filtroRutina ? item.rutina?.toLowerCase() === filtroRutina.toLowerCase() : true;
+    const coincideBusqueda = item.nombreCliente?.toLowerCase().includes(searchQuery.toLowerCase());
     return coincideRutina && coincideBusqueda;
   });
 
-  const totalFiltrado = asistenciasFiltradas.length;
-
   if (loading) {
     return (
-      <View style={[styles.container, { justifyContent: "center" }]}>
+      <View style={[styles.container, { backgroundColor: tema.fondo, justifyContent: "center" }]}>
         <ActivityIndicator size="large" color="#FF9045" />
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: tema.fondo }]}>
       <ScrollView contentContainerStyle={{ paddingBottom: 120 }}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Gestión Asistencias</Text>
+
+        {/* HEADER */}
+        <View style={styles.headerContainer}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Icon name="arrow-left" size={24} color={tema.texto} />
+          </TouchableOpacity>
+          <Text style={[styles.header, { color: tema.texto }]}>Gestión Asistencias</Text>
+          <TouchableOpacity onPress={toggleTema}>
+            <Icon
+              name={modoOscuro ? "weather-night" : "white-balance-sunny"}
+              size={24}
+              color={modoOscuro ? "#FF9045" : "#181B3A"}
+            />
+          </TouchableOpacity>
         </View>
 
-        <View style={styles.totalContainer}>
-          <Text style={styles.totalTitle}>Total Asistencias</Text>
-          <Text style={styles.totalAmount}>{totalFiltrado}</Text>
+        {/* TARJETA TOTAL */}
+        <View style={[styles.totalContainer, { backgroundColor: tema.card, borderColor: "#FF9045" }]}>
+          <Text style={[styles.totalTitle, { color: tema.subtexto }]}>Total Asistencias</Text>
+          <Text style={[styles.totalAmount, { color: tema.texto }]}>{asistenciasFiltradas.length}</Text>
         </View>
 
+        {/* SEPARADOR */}
+        <View style={styles.separatorContainer}>
+          <View style={[styles.line, { backgroundColor: modoOscuro ? "#555" : "#ccc" }]} />
+          <Text style={[styles.separatorText, { color: tema.texto }]}>O</Text>
+          <View style={[styles.line, { backgroundColor: modoOscuro ? "#555" : "#ccc" }]} />
+        </View>
+
+        {/* BOTONES */}
         <View style={styles.buttonsContainer}>
-          <TouchableOpacity
-            style={styles.registerBtn}
-            onPress={() => navigation.navigate("RegistrarAsistencias")}
-          >
+          <TouchableOpacity style={styles.registerBtn} onPress={() => navigation.navigate("RegistrarAsistencias")}>
             <Text style={styles.registerText}>Registrar Asistencias</Text>
           </TouchableOpacity>
-
-          <View style={styles.listBtn}>
-            <Text style={styles.listText}>Listar Asistencias</Text>
+          <View style={[styles.listBtn, { backgroundColor: tema.card, borderColor: "#FF9045" }]}>
+            <Text style={[styles.listText, { color: tema.texto }]}>Listar Asistencias</Text>
           </View>
         </View>
 
-        {/* Filtro de rutina */}
-        <View style={styles.filterContainer}>
+        {/* FILTRO RUTINA */}
+        <View style={[styles.filterContainer, { backgroundColor: tema.input, borderColor: tema.border }]}>
           <Picker
             selectedValue={filtroRutina}
-            onValueChange={(value) => setFiltroRutina(value)}
-            style={styles.picker}
+            onValueChange={setFiltroRutina}
+            style={{ color: tema.inputText }}
+            dropdownIconColor={tema.texto}
           >
             <Picker.Item label="Rutinas" value="" />
-            {rutinasDisponibles.map((r, i) => (
-              <Picker.Item key={i} label={r} value={r} />
-            ))}
+            {rutinasDisponibles.map((r, i) => <Picker.Item key={i} label={r} value={r} />)}
           </Picker>
         </View>
 
-        {/* Búsqueda */}
-        <View style={styles.searchContainer}>
-          <Icon name="magnify" size={24} color="#aaa" style={{ marginRight: 10 }} />
+        {/* BUSCADOR */}
+        <View style={[styles.searchContainer, { backgroundColor: tema.input, borderColor: tema.border }]}>
+          <Icon name="magnify" size={22} color={tema.subtexto} style={{ marginHorizontal: 6 }} />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: tema.inputText }]}
             placeholder="Buscar cliente..."
-            placeholderTextColor="#999"
+            placeholderTextColor={tema.subtexto}
             value={searchQuery}
-            onChangeText={(text) => setSearchQuery(text)}
+            onChangeText={setSearchQuery}
           />
         </View>
 
-        {/* 🔹 LISTA — solo nombre y fecha */}
+        {/* LISTA */}
         {asistenciasFiltradas.map((item) => (
-          <TouchableOpacity key={item.id} onPress={() => abrirModal(item)}>
-            <View style={styles.asistenciaItem}>
-              <Text style={styles.asistenciaText}>{item.nombreCliente}</Text>
-              <Text style={styles.asistenciaFecha}>
-                {item.fecha ? formatDate(item.fecha) : "Sin fecha"}
-              </Text>
-            </View>
+          <TouchableOpacity
+            key={item.id}
+            style={[styles.itemBox, { backgroundColor: tema.item, borderColor: tema.border }]}
+            onPress={() => abrirModal(item)}
+          >
+            <Text style={[styles.itemText, { color: tema.texto }]}>{item.nombreCliente}</Text>
+            <Text style={[styles.fechaText, { color: tema.subtexto }]}>
+              {item.fecha ? formatDate(item.fecha) : "Sin fecha"}
+            </Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
 
-      {/* Modal para editar */}
+      {/* MODAL */}
       <Modal visible={modalVisible} animationType="slide" transparent>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Editar Asistencia</Text>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContainer, { backgroundColor: tema.modal }]}>
+            <Text style={[styles.modalTitle, { color: tema.texto }]}>Editar Asistencia</Text>
 
-            <Text style={styles.modalLabel}>Rutina</Text>
-            <View style={styles.pickerContainer}>
+            <Text style={[styles.modalLabel, { color: tema.texto }]}>Rutina</Text>
+            <View style={[styles.modalPicker, { backgroundColor: tema.input, borderColor: tema.border }]}>
               <Picker
                 selectedValue={formData.rutina}
                 onValueChange={(val) => setFormData({ ...formData, rutina: val })}
+                style={{ color: tema.inputText }}
+                dropdownIconColor={tema.texto}
               >
                 <Picker.Item label="Seleccionar rutina" value="" />
-                {rutinasDisponibles.map((r, i) => (
-                  <Picker.Item key={i} label={r} value={r} />
-                ))}
+                {rutinasDisponibles.map((r, i) => <Picker.Item key={i} label={r} value={r} />)}
               </Picker>
             </View>
 
-            <Text style={styles.modalLabel}>Entrenador</Text>
-            <View style={styles.pickerContainer}>
+            <Text style={[styles.modalLabel, { color: tema.texto }]}>Entrenador</Text>
+            <View style={[styles.modalPicker, { backgroundColor: tema.input, borderColor: tema.border }]}>
               <Picker
                 selectedValue={formData.entrenador}
                 onValueChange={(val) => setFormData({ ...formData, entrenador: val })}
+                style={{ color: tema.inputText }}
+                dropdownIconColor={tema.texto}
               >
                 <Picker.Item label="Seleccionar entrenador" value="" />
-                {entrenadoresDisponibles.map((e, i) => (
-                  <Picker.Item key={i} label={e} value={e} />
-                ))}
+                {entrenadoresDisponibles.map((e, i) => <Picker.Item key={i} label={e} value={e} />)}
               </Picker>
             </View>
 
-            <Text style={styles.modalLabel}>Fecha</Text>
+            <Text style={[styles.modalLabel, { color: tema.texto }]}>Fecha</Text>
             <View style={styles.dateContainer}>
-              <TextInput
-                style={[styles.modalInput, { flex: 1 }]}
-                value={formatDate(formData.fecha)}
-                editable={false}
-              />
+              <View style={[styles.input, { flex: 1, backgroundColor: tema.input, borderColor: tema.border }]}>
+                <Text style={{ color: tema.inputText }}>{formatDate(formData.fecha)}</Text>
+              </View>
               <TouchableOpacity
                 onPress={() => setShowDatePicker(true)}
-                style={styles.calendarButton}
+                style={[styles.calendarButton, { borderColor: "#FF9045" }]}
               >
                 <Icon name="calendar" size={24} color="#FF9045" />
               </TouchableOpacity>
@@ -307,139 +313,66 @@ export default function GestionAsistencias({ navigation }) {
             )}
 
             <View style={styles.modalButtons}>
-              <Button title="Guardar" onPress={guardarCambios} color="#FF9045" />
-              <Button title="Cancelar" color="gray" onPress={() => setModalVisible(false)} />
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: "#FF9045" }]} onPress={guardarCambios}>
+                <Text style={styles.modalBtnText}>Guardar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalBtn, { backgroundColor: "#777" }]} onPress={() => setModalVisible(false)}>
+                <Text style={styles.modalBtnText}>Cancelar</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Barra inferior */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity onPress={() => navigation.navigate("PanelAdmin")}>
-          <Icon name="home-outline" size={28} color="#fff" />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => navigation.navigate("GestionClientes")}>
-          <Icon name="account-group" size={28} color="#fff" />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => navigation.navigate("GestionMembresias")}>
-          <Icon name="card-account-details" size={28} color="#fff" />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => navigation.navigate("GestionPagos")}>
-          <Icon name="currency-usd" size={28} color="#fff" />
-        </TouchableOpacity>
-        <TouchableOpacity>
-          <Icon name="clipboard-list" size={28} color="#FF9045" />
-        </TouchableOpacity>
+      {/* NAVBAR */}
+      <View style={[styles.bottomNav, { backgroundColor: tema.nav, borderColor: tema.border }]}>
+        {[
+          { icon: "home-outline", screen: "PanelAdmin" },
+          { icon: "account-group", screen: "GestionClientes" },
+          { icon: "card-account-details", screen: "GestionMembresias" },
+          { icon: "currency-usd", screen: "GestionPagos" },
+          { icon: "clipboard-list", screen: null },
+        ].map((item, index) => (
+          <TouchableOpacity key={index} onPress={() => item.screen && navigation.navigate(item.screen)}>
+            <Icon name={item.icon} size={28} color={index === 4 ? "#FF9045" : tema.texto} />
+          </TouchableOpacity>
+        ))}
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#23252E", padding: 20 },
-  header: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 20,
-    marginTop: 30,
-  },
-  headerTitle: { color: "#fff", fontSize: 18, fontWeight: "bold" },
-  totalContainer: {
-    backgroundColor: "#23252E",
-    padding: 15,
-    borderRadius: 10,
-    alignItems: "center",
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: "#FF9045",
-  },
-  totalTitle: { color: "#fff", fontSize: 16 },
-  totalAmount: { color: "#fff", fontSize: 22, fontWeight: "bold", marginTop: 5 },
-  filterContainer: {
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    marginBottom: 10,
-    width: 200,
-    alignSelf: "center",
-  },
-  picker: { color: "#000", height: 50 },
-  searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#f0f0f0",
-    paddingHorizontal: 10,
-    borderRadius: 8,
-    marginBottom: 15,
-  },
-  searchInput: { flex: 1, height: 40, color: "#23252E" },
-  asistenciaItem: {
-    backgroundColor: "#D9D9D9",
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 10,
-    alignItems: "center",
-  },
-  asistenciaText: { color: "#23252E", fontSize: 14, fontWeight: "bold" },
-  asistenciaFecha: { color: "#555", fontSize: 12, marginTop: 3 },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  modalContent: { backgroundColor: "#fff", padding: 20, borderRadius: 10, width: "85%" },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 15,
-    color: "#23252E",
-    textAlign: "center",
-  },
-  modalLabel: { color: "#23252E", marginBottom: 5, fontWeight: "600" },
-  pickerContainer: { backgroundColor: "#f0f0f0", borderRadius: 8, marginBottom: 10 },
-  modalInput: { backgroundColor: "#f0f0f0", borderRadius: 8, padding: 10, marginBottom: 10 },
-  dateContainer: { flexDirection: "row", alignItems: "center" },
-  calendarButton: {
-    marginLeft: 10,
-    backgroundColor: "#fff",
-    padding: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#FF9045",
-  },
-  modalButtons: { flexDirection: "row", justifyContent: "space-between", marginTop: 10 },
-  bottomNav: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    backgroundColor: "#23252E",
-    paddingVertical: 10,
-    borderRadius: 12,
-    position: "absolute",
-    bottom: 15,
-    width: "90%",
-    alignSelf: "center",
-  },
+  container: { flex: 1, padding: 20 },
+  headerContainer: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 30, marginBottom: 20 },
+  header: { fontSize: 20, fontWeight: "bold" },
+  totalContainer: { borderRadius: 16, padding: 15, alignItems: "center", borderWidth: 1, elevation: 3, marginBottom: 20 },
+  totalTitle: { fontSize: 16 },
+  totalAmount: { fontSize: 24, fontWeight: "bold", marginTop: 5 },
+  separatorContainer: { flexDirection: "row", alignItems: "center", justifyContent: "center", marginVertical: 15 },
+  line: { flex: 1, height: 1, marginHorizontal: 10 },
+  separatorText: { fontSize: 18, fontWeight: "bold" },
   buttonsContainer: { alignItems: "center", marginBottom: 20 },
-  registerBtn: {
-    backgroundColor: "#FF9045",
-    borderWidth: 1,
-    borderColor: "#FF9045",
-    paddingVertical: 12,
-    paddingHorizontal: 40,
-    borderRadius: 8,
-    marginBottom: 15,
-  },
+  registerBtn: { backgroundColor: "#FF9045", paddingVertical: 14, paddingHorizontal: 40, borderRadius: 12, marginBottom: 15, elevation: 3 },
   registerText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
-  listBtn: {
-    backgroundColor: "#23252E",
-    borderWidth: 1,
-    borderColor: "#FF9045",
-    paddingVertical: 12,
-    paddingHorizontal: 40,
-    borderRadius: 8,
-  },
-  listText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
+  listBtn: { borderWidth: 1, paddingVertical: 14, paddingHorizontal: 40, borderRadius: 12 },
+  listText: { fontSize: 16, fontWeight: "bold" },
+  filterContainer: { borderRadius: 12, marginBottom: 12, borderWidth: 1, overflow: "hidden" },
+  searchContainer: { flexDirection: "row", alignItems: "center", borderRadius: 12, paddingHorizontal: 10, marginBottom: 15, borderWidth: 1 },
+  searchInput: { flex: 1, paddingVertical: 12, fontSize: 15 },
+  itemBox: { padding: 15, borderRadius: 12, marginBottom: 12, borderWidth: 1, elevation: 2, alignItems: "center" },
+  itemText: { fontSize: 15, fontWeight: "500" },
+  fechaText: { fontSize: 13, marginTop: 3 },
+  modalOverlay: { flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", alignItems: "center" },
+  modalContainer: { width: "90%", borderRadius: 20, padding: 20 },
+  modalTitle: { fontSize: 20, fontWeight: "bold", textAlign: "center", marginBottom: 20 },
+  modalLabel: { fontSize: 14, fontWeight: "600", marginBottom: 6, marginTop: 10 },
+  modalPicker: { borderRadius: 12, borderWidth: 1, overflow: "hidden" },
+  input: { padding: 14, borderRadius: 12, borderWidth: 1, marginTop: 5 },
+  dateContainer: { flexDirection: "row", alignItems: "center", marginTop: 5 },
+  calendarButton: { marginLeft: 10, padding: 10, borderRadius: 12, borderWidth: 1 },
+  modalButtons: { flexDirection: "row", justifyContent: "space-between", marginTop: 25 },
+  modalBtn: { flex: 1, marginHorizontal: 5, borderRadius: 12, paddingVertical: 12 },
+  modalBtnText: { color: "#fff", textAlign: "center", fontWeight: "bold", fontSize: 15 },
+  bottomNav: { flexDirection: "row", justifyContent: "space-around", alignItems: "center", paddingVertical: 12, borderRadius: 18, position: "absolute", bottom: 15, width: "90%", alignSelf: "center", borderWidth: 1, elevation: 6 },
 });

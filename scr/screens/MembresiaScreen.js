@@ -1,335 +1,207 @@
 import React, { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ActivityIndicator,
-  ScrollView,
-  TouchableOpacity,
-} from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator, ScrollView, TouchableOpacity } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { auth, db } from "../screens/firebase/firebaseConfig";
 import { collection, getDocs, query, where } from "firebase/firestore";
 
 export default function Membresia({ navigation }) {
   const [membresia, setMembresia] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [modoOscuro, setModoOscuro] = useState(false);
 
-  // Parsear fecha segura:
-  // - acepta Firestore Timestamp (objeto con toDate)
-  // - acepta string "dd/mm/yyyy"
-  // - por defecto crea Date en zona local usando new Date(año, mesIndex, dia)
-  // Si endOfDay = true -> devuelve la fecha con hora 23:59:59.999 (útil para fechaFin)
+  // 🔹 CARGAR TEMA GUARDADO
+  useEffect(() => {
+    const cargarTema = async () => {
+      try {
+        const temaGuardado = await AsyncStorage.getItem("modoOscuro");
+        if (temaGuardado !== null) setModoOscuro(JSON.parse(temaGuardado));
+      } catch (e) { console.error(e); }
+    };
+    cargarTema();
+  }, []);
+
+  // 🎨 TEMA
+  const tema = {
+    fondo: modoOscuro ? "#23252E" : "#f4f4f4",
+    texto: modoOscuro ? "#ffffff" : "#181B3A",
+    subtexto: modoOscuro ? "#aaa" : "#666",
+    cardBg: modoOscuro ? "#2E3038" : "#ffffff",
+    cardBorder: modoOscuro ? "#3A3D46" : "#e0e0e0",
+    navBg: modoOscuro ? "#2E3038" : "#ffffff",
+    navBorder: modoOscuro ? "#3A3D46" : "#ddd",
+    linea: modoOscuro ? "#fff" : "#ccc",
+    separadorTexto: modoOscuro ? "#fff" : "#181B3A",
+    iconoNav: modoOscuro ? "#ffffff" : "#181B3A",
+  };
+
+  // 🔹 PARSEAR FECHA
   const parseFecha = (fechaInput, endOfDay = false) => {
     if (!fechaInput) return null;
-
     try {
-      // Firestore Timestamp
       if (typeof fechaInput === "object" && typeof fechaInput.toDate === "function") {
         const d = fechaInput.toDate();
         if (endOfDay) d.setHours(23, 59, 59, 999);
         return d;
       }
-
-      // String dd/mm/yyyy
       if (typeof fechaInput === "string" && fechaInput.includes("/")) {
         const parts = fechaInput.split("/");
         if (parts.length >= 3) {
-          const dia = parseInt(parts[0], 10);
-          const mes = parseInt(parts[1], 10) - 1; // monthIndex
-          const anio = parseInt(parts[2], 10);
-          const d = new Date(anio, mes, dia);
+          const d = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
           if (endOfDay) d.setHours(23, 59, 59, 999);
           return d;
         }
       }
-
-      // Fallback: intentar parsear cualquier otro formato
       const d2 = new Date(fechaInput);
-      if (!isNaN(d2)) {
-        if (endOfDay) d2.setHours(23, 59, 59, 999);
-        return d2;
-      }
-    } catch (err) {
-      console.warn("parseFecha fallo:", err);
-    }
-
+      if (!isNaN(d2)) { if (endOfDay) d2.setHours(23, 59, 59, 999); return d2; }
+    } catch (err) { console.warn("parseFecha fallo:", err); }
     return null;
   };
 
+  // 🔹 CARGAR MEMBRESÍA
   useEffect(() => {
     const user = auth.currentUser;
     if (user) {
       const fetchMembresiaData = async () => {
         try {
-          const q = query(
-            collection(db, "Membresias"),
-            where("clienteID", "==", user.uid)
-          );
+          const q = query(collection(db, "Membresias"), where("clienteID", "==", user.uid));
           const querySnapshot = await getDocs(q);
-
           if (!querySnapshot.empty) {
             const membresias = querySnapshot.docs.map((docRef) => {
               const data = docRef.data();
-              return {
-                id: docRef.id,
-                ...data,
-                // fechaInicio -> inicio del día (00:00:00)
-                fechaInicio: parseFecha(data.fechaInicio, false),
-                // fechaFin -> final del día (23:59:59.999) para que incluya todo ese día
-                fechaFin: parseFecha(data.fechaFin, true),
-              };
+              return { id: docRef.id, ...data, fechaInicio: parseFecha(data.fechaInicio, false), fechaFin: parseFecha(data.fechaFin, true) };
             });
-
-            // Ordenar por fechaFin (más reciente primero). Manejar nulls.
-            membresias.sort((a, b) => {
-              const aTime = a.fechaFin ? a.fechaFin.getTime() : 0;
-              const bTime = b.fechaFin ? b.fechaFin.getTime() : 0;
-              return bTime - aTime;
-            });
-
+            membresias.sort((a, b) => (b.fechaFin?.getTime() ?? 0) - (a.fechaFin?.getTime() ?? 0));
             setMembresia(membresias[0]);
-          } else {
-            setMembresia(null);
-          }
-        } catch (error) {
-          console.error("Error cargando membresía:", error);
-        } finally {
-          setLoading(false);
-        }
+          } else { setMembresia(null); }
+        } catch (error) { console.error("Error cargando membresía:", error); }
+        finally { setLoading(false); }
       };
-
       fetchMembresiaData();
-    } else {
-      setLoading(false);
-    }
+    } else { setLoading(false); }
   }, []);
 
   if (loading) {
     return (
-      <View style={styles.center}>
+      <View style={[styles.center, { backgroundColor: tema.fondo }]}>
         <ActivityIndicator size="large" color="#FF9045" />
       </View>
     );
   }
 
-  // Estado actual
   const ahora = new Date();
   let estadoMembresia = "No registrada";
   if (membresia) {
-    if (membresia.fechaFin && membresia.fechaFin < ahora) {
-      estadoMembresia = "Expirada";
-    } else {
-      estadoMembresia = membresia.estado || "Activa";
-    }
+    if (membresia.fechaFin && membresia.fechaFin < ahora) estadoMembresia = "Expirada";
+    else estadoMembresia = membresia.estado || "Activa";
   }
 
-  // Función para formatear fecha en formato local Colombia (solo fecha)
   const formatLocalDate = (d) => {
     if (!d) return "N/A";
-    try {
-      return d.toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" });
-    } catch {
-      return d.toLocaleDateString();
-    }
+    try { return d.toLocaleDateString("es-CO", { day: "2-digit", month: "2-digit", year: "numeric" }); }
+    catch { return d.toLocaleDateString(); }
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#23252E" }}>
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={{ paddingBottom: 100 }}
-      >
-        {/* Header */}
-        <Text style={styles.title}>Mi Membresía</Text>
-        <Text style={styles.subtitle}>
+    <View style={{ flex: 1, backgroundColor: tema.fondo }}>
+      <ScrollView style={[styles.container, { backgroundColor: tema.fondo }]} contentContainerStyle={{ paddingBottom: 100 }}>
+
+        {/* HEADER */}
+        <Text style={[styles.title, { color: "#FF9045" }]}>Mi Membresía</Text>
+        <Text style={[styles.subtitle, { color: tema.subtexto }]}>
           Consulte el estado actual de su membresía
         </Text>
 
-        {/* Estado actual */}
-        <View style={styles.cardEstado}>
-          <Text
-            style={[
-              styles.estado,
-              estadoMembresia.toLowerCase() === "activa"
-                ? styles.activa
-                : estadoMembresia.toLowerCase() === "expirada"
-                ? styles.expirada
-                : styles.inactiva,
-            ]}
-          >
+        {/* ESTADO */}
+        <View style={[styles.cardEstado, { backgroundColor: tema.cardBg, borderColor: tema.cardBorder }]}>
+          <Text style={[
+            styles.estado,
+            estadoMembresia.toLowerCase() === "activa" ? styles.activa
+            : estadoMembresia.toLowerCase() === "expirada" ? styles.expirada
+            : styles.inactiva,
+          ]}>
             Membresía {estadoMembresia}
           </Text>
-
-          <Text style={styles.tipo}>
-            {membresia?.tipoMembresia || "Sin membresía"}
+          <Text style={[styles.tipo, { color: tema.texto }]}>{membresia?.tipoMembresia || "Sin membresía"}</Text>
+          <Text style={[styles.fecha, { color: tema.subtexto }]}>
+            Inicio: {membresia?.fechaInicio ? formatLocalDate(membresia.fechaInicio) : "N/A"}
           </Text>
-
-          {/* Fechas */}
-          <Text style={styles.fecha}>
-            Inicio:{" "}
-            {membresia?.fechaInicio
-              ? formatLocalDate(membresia.fechaInicio)
-              : "N/A"}
-          </Text>
-          <Text style={styles.fecha}>
-            Fin:{" "}
-            {membresia?.fechaFin ? formatLocalDate(membresia.fechaFin) : "N/A"}
+          <Text style={[styles.fecha, { color: tema.subtexto }]}>
+            Fin: {membresia?.fechaFin ? formatLocalDate(membresia.fechaFin) : "N/A"}
           </Text>
         </View>
 
-        {/* Separador */}
+        {/* SEPARADOR */}
         <View style={styles.separatorContainer}>
-          <View style={styles.line} />
-          <Text style={styles.separatorText}>O</Text>
-          <View style={styles.line} />
+          <View style={[styles.line, { backgroundColor: tema.linea }]} />
+          <Text style={[styles.separatorText, { color: tema.separadorTexto }]}>O</Text>
+          <View style={[styles.line, { backgroundColor: tema.linea }]} />
         </View>
 
-        {/* Membresías disponibles */}
+        {/* MEMBRESÍAS DISPONIBLES */}
         <View style={styles.section}>
           <View style={styles.accesos}>
-            <Icon
-              name="view-grid"
-              size={18}
-              color="#FF9045"
-              style={{ marginRight: 6 }}
-            />
-            <Text style={styles.sectionTitle}>Membresías Existentes</Text>
+            <Icon name="view-grid" size={18} color="#FF9045" style={{ marginRight: 6 }} />
+            <Text style={[styles.sectionTitle, { color: tema.texto }]}>Membresías Existentes</Text>
           </View>
 
           <View style={styles.grid}>
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Mensual</Text>
-              <Text style={styles.cardText}>Tienes acceso a 30 días</Text>
-            </View>
-            <View style={styles.cardmedi}>
-              <Text style={styles.cardTitle}>Trimestral</Text>
-              <Text style={styles.cardText}>Tienes acceso a 90 días</Text>
-            </View>
-            <View style={styles.cardFull}>
-              <Text style={styles.cardTitle}>Anual</Text>
-              <Text style={styles.cardText}>Tienes acceso a 365 días</Text>
-            </View>
+            {[
+              { titulo: "Mensual", texto: "Tienes acceso a 30 días" },
+              { titulo: "Trimestral", texto: "Tienes acceso a 90 días" },
+              { titulo: "Anual", texto: "Tienes acceso a 365 días" },
+            ].map((item) => (
+              <View key={item.titulo} style={[styles.card, { backgroundColor: tema.cardBg, borderColor: tema.cardBorder }]}>
+                <Text style={styles.cardTitle}>{item.titulo}</Text>
+                <Text style={[styles.cardText, { color: tema.subtexto }]}>{item.texto}</Text>
+              </View>
+            ))}
           </View>
         </View>
+
       </ScrollView>
 
-      {/* Barra inferior fija */}
-      <View style={styles.bottomNav}>
+      {/* BARRA INFERIOR */}
+      <View style={[styles.bottomNav, { backgroundColor: tema.navBg, borderTopColor: tema.navBorder }]}>
         <TouchableOpacity onPress={() => navigation.navigate("PanelClientes")}>
-          <Icon name="home-outline" size={28} color="#fff" />
+          <Icon name="home-outline" size={28} color={tema.iconoNav} />
         </TouchableOpacity>
-
         <TouchableOpacity onPress={() => navigation.navigate("Membresia")}>
           <Icon name="card-account-details" size={28} color="#FF9045" />
         </TouchableOpacity>
-
         <TouchableOpacity onPress={() => navigation.navigate("Asistencia")}>
-          <Icon name="clipboard-list" size={28} color="#fff" />
+          <Icon name="clipboard-list" size={28} color={tema.iconoNav} />
         </TouchableOpacity>
-        
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#23252E", padding: 20 },
-  center: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#23252E",
-  },
-  title: {
-    color: "#FF9045",
-    fontSize: 20,
-    fontWeight: "bold",
-    textAlign: "center",
-    marginBottom: 10,
-    marginTop: 40,
-  },
-  subtitle: {
-    color: "#fff",
-    fontSize: 14,
-    textAlign: "center",
-    marginBottom: 20,
-  },
-  cardEstado: {
-    backgroundColor: "#2E3038",
-    padding: 20,
-    borderRadius: 12,
-    alignItems: "center",
-    marginBottom: 20,
-  },
+  container: { flex: 1, padding: 20 },
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  title: { fontSize: 20, fontWeight: "bold", textAlign: "center", marginBottom: 10, marginTop: 40 },
+  subtitle: { fontSize: 14, textAlign: "center", marginBottom: 20 },
+  cardEstado: { padding: 20, borderRadius: 12, alignItems: "center", marginBottom: 20, borderWidth: 1, elevation: 2 },
   estado: { fontSize: 16, fontWeight: "bold" },
   activa: { color: "green" },
   inactiva: { color: "red" },
   expirada: { color: "orange" },
-  tipo: { fontSize: 18, color: "#fff", marginTop: 10, fontWeight: "bold" },
-  fecha: { fontSize: 14, color: "#fff", marginTop: 5 },
+  tipo: { fontSize: 18, marginTop: 10, fontWeight: "bold" },
+  fecha: { fontSize: 14, marginTop: 5 },
   section: { marginTop: 20 },
   accesos: { flexDirection: "row", alignItems: "center", marginBottom: 15 },
-  sectionTitle: { color: "#fff", fontSize: 16, fontWeight: "bold" },
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    marginTop: 20,
-  },
-  card: {
-    backgroundColor: "#2E3038",
-    width: "100%",
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 15,
-    alignItems: "center",
-  },
-  cardTitle: {
-    color: "#FF9045",
-    fontWeight: "bold",
-    marginBottom: 6,
-    fontSize: 20,
-  },
-  cardText: { color: "#fff", fontSize: 12, textAlign: "center" },
-  separatorContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 10,
-    paddingHorizontal: 5,
-  },
-  separatorText: { marginHorizontal: 10, color: "#FFF", fontSize: 16, fontWeight: "bold" },
-  line: { flex: 1, height: 1, backgroundColor: "#fff" },
-  cardFull: {
-    backgroundColor: "#2E3038",
-    width: "100%",
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 15,
-    alignItems: "center",
-    marginTop: 20,
-  },
-  cardmedi: {
-    backgroundColor: "#2E3038",
-    width: "100%",
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 15,
-    alignItems: "center",
-    marginTop: 20,
-  },
+  sectionTitle: { fontSize: 16, fontWeight: "bold" },
+  grid: { flexDirection: "column", marginTop: 10 },
+  card: { width: "100%", padding: 15, borderRadius: 8, marginBottom: 15, alignItems: "center", borderWidth: 1, elevation: 1 },
+  cardTitle: { color: "#FF9045", fontWeight: "bold", marginBottom: 6, fontSize: 20 },
+  cardText: { fontSize: 12, textAlign: "center" },
+  separatorContainer: { flexDirection: "row", alignItems: "center", marginBottom: 10, paddingHorizontal: 5 },
+  separatorText: { marginHorizontal: 10, fontSize: 16, fontWeight: "bold" },
+  line: { flex: 1, height: 1 },
   bottomNav: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    backgroundColor: "#2E3038",
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#3A3D46",
-    position: "absolute",
-    bottom: 20,
-    alignSelf: "center",
-    width: "90%",
-    borderRadius: 12,
+    flexDirection: "row", justifyContent: "space-around", alignItems: "center",
+    paddingVertical: 12, borderTopWidth: 1, position: "absolute", bottom: 20,
+    alignSelf: "center", width: "90%", borderRadius: 12, elevation: 6,
   },
 });

@@ -1,37 +1,67 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet, Image } from 'react-native';
+import { View, StyleSheet, Image, Text } from 'react-native';
 
 export default function WelcomeScreen({ navigation }) {
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      navigation.replace("Login"); // Usa replace para que no pueda volver atrás
+      navigation.replace("Login");
     }, 5000);
 
-    return () => clearTimeout(timer); // Limpia el timer si el componente se desmonta
+    return () => clearTimeout(timer);
   }, [navigation]);
 
   return (
     <View style={styles.container}>
-      <Image
-        source={require('../../assets/LogoWOFitGestorX.png')}
-        style={styles.logoImage}
-        resizeMode="contain"
-      />
+
+      {/* Logo centrado */}
+      <View style={styles.logoContainer}>
+        <Image
+          source={require('../../assets/logofit.png')}
+          style={styles.logoImage}
+          resizeMode="contain"
+        />
+        
+      </View>
+
+      {/* Texto inferior */}
+      <View style={styles.footer}>
+        <Text style={styles.byText}>By</Text>
+        <Text style={styles.companyText}>WO Devs</Text>
+      </View>
+
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,                // Ocupa toda la pantalla
-    justifyContent: 'center', 
+    flex: 1,
+    justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#23252E', // Fondo blanco (puedes cambiarlo)
+    backgroundColor: '#ffffff',
+  },
+  logoContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   logoImage: {
-    width: '100%',   // Ocupa todo el ancho del celular
-    height: '100%',  // Ocupa todo el alto del celular
+    width: 250,
+    height: 250,
+  },
+  footer: {
+    marginBottom: 50,
+    alignItems: 'center',
+  },
+  byText: {
+    fontSize: 16,
+    color: '#181B3A',
+  },
+  companyText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1a1a2e',
   },
 });
 

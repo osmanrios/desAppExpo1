@@ -1,18 +1,7 @@
-// --- IMPORTS ---
 import React, { useState, useEffect } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  Platform,
-  ScrollView,
-  Modal,
-  FlatList,
-} from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, Platform, ScrollView, Modal, FlatList } from "react-native";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Picker } from "@react-native-picker/picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { db } from "../screens/firebase/firebaseConfig";
@@ -27,115 +16,86 @@ export default function RegistrarAsistencias({ navigation }) {
   const [entrenador, setEntrenador] = useState("");
   const [showPicker, setShowPicker] = useState(false);
   const [membresiaActiva, setMembresiaActiva] = useState(null);
-
-  // 🔍 Modal y búsqueda
   const [modalVisible, setModalVisible] = useState(false);
   const [searchText, setSearchText] = useState("");
+  const [modoOscuro, setModoOscuro] = useState(false);
 
-  // 🔹 Cargar lista de clientes desde Firestore
+  // 🔹 CARGAR TEMA GUARDADO
+  useEffect(() => {
+    const cargarTema = async () => {
+      try {
+        const temaGuardado = await AsyncStorage.getItem("modoOscuro");
+        if (temaGuardado !== null) setModoOscuro(JSON.parse(temaGuardado));
+      } catch (e) { console.error(e); }
+    };
+    cargarTema();
+  }, []);
+
+  // 🔹 GUARDAR TEMA AL CAMBIAR
+  const toggleTema = async () => {
+    try {
+      const nuevo = !modoOscuro;
+      setModoOscuro(nuevo);
+      await AsyncStorage.setItem("modoOscuro", JSON.stringify(nuevo));
+    } catch (e) { console.error(e); }
+  };
+
+  const tema = {
+    fondo: modoOscuro ? "#23252E" : "#f4f4f4",
+    texto: modoOscuro ? "#fff" : "#181B3A",
+    subtexto: modoOscuro ? "#aaa" : "#666",
+    inputBg: modoOscuro ? "#2E3038" : "#fff",
+    inputBorder: modoOscuro ? "#3A3D46" : "#ddd",
+    inputTexto: modoOscuro ? "#fff" : "#000",
+    placeholder: modoOscuro ? "#888" : "#999",
+    navBg: modoOscuro ? "#2E3038" : "#fff",
+    navBorder: modoOscuro ? "#3A3D46" : "#ddd",
+    icono: modoOscuro ? "#fff" : "#181B3A",
+  };
+
+  // 🔹 CARGAR CLIENTES
   useEffect(() => {
     const cargarClientes = async () => {
       try {
         const q = query(collection(db, "Usuarios"), where("role", "==", "cliente"));
-        const querySnapshot = await getDocs(q);
-        const listaClientes = querySnapshot.docs.map((doc) => ({
-          id: doc.id,
-          nombre: doc.data().nombre,
-        }));
-        setClientes(listaClientes);
-      } catch (error) {
-        console.error("❌ Error cargando clientes:", error);
-      }
+        const snap = await getDocs(q);
+        setClientes(snap.docs.map((doc) => ({ id: doc.id, nombre: doc.data().nombre })));
+      } catch (error) { console.error(error); }
     };
     cargarClientes();
   }, []);
 
-  const formatDate = (date) => {
-    const d = new Date(date);
-    const day = String(d.getDate()).padStart(2, "0");
-    const month = String(d.getMonth() + 1).padStart(2, "0");
-    const year = d.getFullYear();
-    return `${day}/${month}/${year}`;
-  };
-
-  // ✅ Buscar membresía activa automáticamente al seleccionar cliente
+  // 🔹 BUSCAR MEMBRESÍA
   useEffect(() => {
-    const buscarMembresiaActiva = async () => {
+    const buscarMembresia = async () => {
       if (!clienteID) return;
       try {
-        const membresiaQ = query(
-          collection(db, "Membresias"),
-          where("clienteID", "==", clienteID)
-        );
-        const membresiaSnap = await getDocs(membresiaQ);
-        if (membresiaSnap.empty) {
-          setMembresiaActiva(null);
-          Alert.alert("Aviso", "El cliente no tiene una membresía registrada.");
-          return;
-        }
-
-        const data = membresiaSnap.docs[0].data();
-        setMembresiaActiva(data);
-      } catch (error) {
-        console.error("❌ Error al buscar membresía:", error);
-      }
+        const q = query(collection(db, "Membresias"), where("clienteID", "==", clienteID));
+        const snap = await getDocs(q);
+        if (snap.empty) { setMembresiaActiva(null); Alert.alert("Aviso", "El cliente no tiene membresía."); return; }
+        setMembresiaActiva(snap.docs[0].data());
+      } catch (error) { console.error(error); }
     };
-    buscarMembresiaActiva();
+    buscarMembresia();
   }, [clienteID]);
 
-  // ✅ Función para registrar asistencia
+  const formatDate = (date) => {
+    const d = new Date(date);
+    return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+  };
+
   const registrarAsistencia = async () => {
     if (!clienteID || !cliente || !rutina || !fecha || !entrenador) {
-      Alert.alert("Error", "Por favor completa todos los campos.");
-      return;
+      Alert.alert("Error", "Completa todos los campos."); return;
     }
-
     try {
-      if (!membresiaActiva) {
-        Alert.alert("Error", "El cliente no tiene una membresía activa.");
-        return;
-      }
-
-      const data = membresiaActiva;
-      const [diaInicio, mesInicio, anioInicio] = data.fechaInicio.split("/");
-      const fechaInicio = new Date(`${anioInicio}-${mesInicio}-${diaInicio}`);
-
-      let fechaFin = new Date(fechaInicio);
-      if (data.tipoMembresia === "Mensual") {
-        fechaFin.setMonth(fechaFin.getMonth() + 1);
-      } else if (data.tipoMembresia === "Trimestral") {
-        fechaFin.setMonth(fechaFin.getMonth() + 3);
-      } else if (data.tipoMembresia === "Anual") {
-        fechaFin.setFullYear(fechaFin.getFullYear() + 1);
-      }
-
-      const hoy = new Date();
-      if (hoy < fechaInicio || hoy > fechaFin) {
-        Alert.alert("Membresía caducada", "La membresía del cliente ha caducado.");
-        return;
-      }
-
       await addDoc(collection(db, "Asistencias"), {
-        clienteID,
-        nombreCliente: cliente,
-        rutina,
-        fecha,
-        entrenador,
-        createdAt: new Date(),
+        clienteID, nombreCliente: cliente, rutina, fecha, entrenador, createdAt: new Date(),
       });
-
-      Alert.alert("✅ Éxito", "Asistencia registrada correctamente.");
-      setCliente("");
-      setClienteID(null);
-      setRutina("");
-      setFecha("");
-      setEntrenador("");
-      setMembresiaActiva(null);
+      Alert.alert("✅ Éxito", "Asistencia registrada.");
+      setCliente(""); setClienteID(null); setRutina(""); setFecha(""); setEntrenador("");
       navigation.replace("PanelAdmin");
-    } catch (error) {
-      console.error("❌ Error al registrar asistencia:", error);
-      Alert.alert("Error", "Hubo un problema al registrar la asistencia.");
-    }
+    } catch (error) { console.error(error); Alert.alert("Error", "No se pudo registrar."); }
   };
 
   const clientesFiltrados = clientes.filter((c) =>
@@ -143,237 +103,137 @@ export default function RegistrarAsistencias({ navigation }) {
   );
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Icon name="arrow-left" size={24} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Registrar Asistencias</Text>
-        <Icon name="bell-outline" size={24} color="#fff" />
-      </View>
+    <View style={[styles.container, { backgroundColor: tema.fondo }]}>
+      <ScrollView showsVerticalScrollIndicator={false}>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 120 }}>
+        {/* HEADER */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Icon name="arrow-left" size={24} color={tema.icono} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: tema.texto }]}>Registrar Asistencias</Text>
+          <TouchableOpacity onPress={toggleTema}>
+            <Icon name={modoOscuro ? "weather-night" : "white-balance-sunny"} size={24} color={modoOscuro ? "#FF9045" : "#181B3A"} />
+          </TouchableOpacity>
+        </View>
+
+        {/* ICONO */}
         <View style={styles.iconContainer}>
           <Icon name="clipboard-list" size={70} color="#FF9045" />
         </View>
 
-        {/* Nombre Cliente */}
-        <Text style={styles.label}>Nombre Cliente</Text>
-        <TouchableOpacity style={styles.inputIcon} onPress={() => setModalVisible(true)}>
-          <Text style={[styles.inputFlex, { color: cliente ? "#000" : "#aaa" }]}>
+        {/* CLIENTE */}
+        <Text style={[styles.label, { color: tema.texto }]}>Nombre Cliente</Text>
+        <TouchableOpacity style={[styles.inputIcon, { backgroundColor: tema.inputBg, borderColor: tema.inputBorder }]} onPress={() => setModalVisible(true)}>
+          <Text style={{ flex: 1, color: cliente ? tema.inputTexto : tema.placeholder }}>
             {cliente || "Seleccionar cliente..."}
           </Text>
-          <Icon name="magnify" size={22} color="#070707ff" />
+          <Icon name="magnify" size={22} color="#FF9045" />
         </TouchableOpacity>
 
-        {/* Modal búsqueda */}
+        {/* MODAL */}
         <Modal visible={modalVisible} animationType="slide">
-          <View style={{ flex: 1, backgroundColor: "#fff", padding: 20 }}>
+          <View style={[styles.modalContainer, { backgroundColor: tema.fondo }]}>
             <TextInput
-              style={{
-                borderWidth: 1,
-                borderColor: "#ccc",
-                borderRadius: 8,
-                padding: 10,
-                marginBottom: 15,
-              }}
-              placeholder="Buscar cliente..."
-              value={searchText}
-              onChangeText={setSearchText}
+              style={[styles.modalInput, { backgroundColor: tema.inputBg, borderColor: tema.inputBorder, color: tema.inputTexto }]}
+              placeholder="Buscar cliente..." placeholderTextColor={tema.placeholder}
+              value={searchText} onChangeText={setSearchText}
             />
             <FlatList
-              data={clientesFiltrados}
-              keyExtractor={(item) => item.id}
+              data={clientesFiltrados} keyExtractor={(item) => item.id}
               renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={{
-                    padding: 15,
-                    borderBottomWidth: 1,
-                    borderBottomColor: "#eee",
-                  }}
-                  onPress={() => {
-                    setCliente(item.nombre);
-                    setClienteID(item.id);
-                    setModalVisible(false);
-                    setSearchText("");
-                  }}
-                >
-                  <Text>{item.nombre}</Text>
+                <TouchableOpacity style={[styles.modalItem, { borderBottomColor: tema.inputBorder }]}
+                  onPress={() => { setCliente(item.nombre); setClienteID(item.id); setModalVisible(false); setSearchText(""); }}>
+                  <Text style={{ color: tema.texto }}>{item.nombre}</Text>
                 </TouchableOpacity>
               )}
             />
-            <TouchableOpacity
-              style={{
-                padding: 15,
-                backgroundColor: "#FF3B30",
-                borderRadius: 8,
-                alignItems: "center",
-                marginTop: 10,
-              }}
-              onPress={() => setModalVisible(false)}
-            >
-              <Text style={{ color: "#fff", fontWeight: "bold" }}>Cerrar</Text>
+            <TouchableOpacity style={styles.cancelBtn} onPress={() => setModalVisible(false)}>
+              <Text style={styles.cancelText}>Cerrar</Text>
             </TouchableOpacity>
           </View>
         </Modal>
 
-        {/* Rutina */}
-        <Text style={styles.label}>Rutina</Text>
-        <View style={styles.inputIcon}>
-          <View style={{ flex: 1 }}>
-            <Picker
-              selectedValue={rutina}
-              onValueChange={(itemValue) => setRutina(itemValue)}
-              style={styles.pickerInside}
-              dropdownIconColor="#0d0d0dff"
-            >
-              <Picker.Item label="Seleccionar..." value="" />
-              <Picker.Item label="Cardio" value="Cardio" />
-              <Picker.Item label="Fuerza" value="Fuerza" />
-              <Picker.Item label="HIIT" value="HIIT" />
-              <Picker.Item label="Yoga" value="Yoga" />
-            </Picker>
-          </View>
-          
+        {/* RUTINA */}
+        <Text style={[styles.label, { color: tema.texto }]}>Rutina</Text>
+        <View style={[styles.pickerContainer, { backgroundColor: tema.inputBg, borderColor: tema.inputBorder }]}>
+          <Picker selectedValue={rutina} onValueChange={setRutina} style={{ color: tema.inputTexto }} dropdownIconColor={tema.icono}>
+            <Picker.Item label="Seleccionar..." value="" />
+            <Picker.Item label="Cardio" value="Cardio" />
+            <Picker.Item label="Fuerza" value="Fuerza" />
+            <Picker.Item label="HIIT" value="HIIT" />
+            <Picker.Item label="Yoga" value="Yoga" />
+          </Picker>
         </View>
 
-        {/* Fecha Asistencia */}
-        <Text style={styles.label}>Fecha Asistencia</Text>
-        <View style={styles.inputIcon}>
-          <TextInput
-            style={styles.inputFlex}
-            placeholder="dd/mm/aaaa"
-            placeholderTextColor="#aaa"
-            value={fecha}
-            editable={false}
-          />
+        {/* FECHA */}
+        <Text style={[styles.label, { color: tema.texto }]}>Fecha Asistencia</Text>
+        <View style={[styles.inputIcon, { backgroundColor: tema.inputBg, borderColor: tema.inputBorder }]}>
+          <TextInput style={[styles.inputFlex, { color: tema.inputTexto }]} placeholder="dd/mm/aaaa" placeholderTextColor={tema.placeholder} value={fecha} editable={false} />
           <TouchableOpacity onPress={() => setShowPicker(true)}>
-            <Icon name="calendar" size={22} color="#100f0fff" />
+            <Icon name="calendar" size={22} color="#FF9045" />
           </TouchableOpacity>
         </View>
-
         {showPicker && (
-          <DateTimePicker
-            value={new Date()}
-            mode="date"
-            display={Platform.OS === "ios" ? "spinner" : "default"}
-            onChange={(event, selectedDate) => {
-              setShowPicker(false);
-              if (selectedDate) setFecha(formatDate(selectedDate));
-            }}
-          />
+          <DateTimePicker value={new Date()} mode="date" display={Platform.OS === "ios" ? "spinner" : "default"}
+            onChange={(event, selectedDate) => { setShowPicker(false); if (selectedDate) setFecha(formatDate(selectedDate)); }} />
         )}
 
-        {/* Entrenador */}
-        <Text style={styles.label}>Entrenador</Text>
-        <View style={styles.inputIcon}>
-          <View style={{ flex: 1 }}>
-            <Picker
-              selectedValue={entrenador}
-              onValueChange={(itemValue) => setEntrenador(itemValue)}
-              style={styles.pickerInside}
-              dropdownIconColor="#050505ff"
-            >
-              <Picker.Item label="Seleccionar..." value="" />
-              <Picker.Item label="Carlos Gómez" value="Carlos Gómez" />
-              <Picker.Item label="Ana Torres" value="Ana Torres" />
-              <Picker.Item label="Luis Ramírez" value="Luis Ramírez" />
-            </Picker>
-          </View>
-          
+        {/* ENTRENADOR */}
+        <Text style={[styles.label, { color: tema.texto }]}>Entrenador</Text>
+        <View style={[styles.pickerContainer, { backgroundColor: tema.inputBg, borderColor: tema.inputBorder }]}>
+          <Picker selectedValue={entrenador} onValueChange={setEntrenador} style={{ color: tema.inputTexto }} dropdownIconColor={tema.icono}>
+            <Picker.Item label="Seleccionar..." value="" />
+            <Picker.Item label="Carlos Gómez" value="Carlos Gómez" />
+            <Picker.Item label="Ana Torres" value="Ana Torres" />
+            <Picker.Item label="Luis Ramírez" value="Luis Ramírez" />
+          </Picker>
         </View>
 
-        {/* Botones */}
+        {/* BOTONES */}
         <TouchableOpacity style={styles.registerBtn} onPress={registrarAsistencia}>
           <Text style={styles.registerText}>Registrar</Text>
         </TouchableOpacity>
-
         <TouchableOpacity style={styles.cancelBtn} onPress={() => navigation.goBack()}>
           <Text style={styles.cancelText}>Cancelar</Text>
         </TouchableOpacity>
+
+        <View style={{ height: 120 }} />
       </ScrollView>
 
-      {/* Barra inferior */}
-      <View style={styles.bottomNav}>
-        <TouchableOpacity onPress={() => navigation.navigate("PanelAdmin")}>
-          <Icon name="home-outline" size={28} color="#fff" />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => navigation.navigate("GestionClientes")}>
-          <Icon name="account-group" size={28} color="#fff" />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => navigation.navigate("GestionMembresias")}>
-          <Icon name="card-account-details" size={28} color="#fff" />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => navigation.navigate("GestionPagos")}>
-          <Icon name="currency-usd" size={28} color="#fff" />
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => navigation.navigate("GestionAsistencias")}>
-          <Icon name="clipboard-list" size={28} color="#fff" />
-        </TouchableOpacity>
+      {/* NAVBAR */}
+      <View style={[styles.bottomNav, { backgroundColor: tema.navBg, borderTopColor: tema.navBorder }]}>
+        {[
+          { icon: "home-outline", screen: "PanelAdmin" },
+          { icon: "account-group", screen: "GestionClientes" },
+          { icon: "card-account-details", screen: "GestionMembresias" },
+          { icon: "currency-usd", screen: "GestionPagos" },
+          { icon: "clipboard-list", screen: "GestionAsistencias" },
+        ].map((item) => (
+          <TouchableOpacity key={item.screen} onPress={() => navigation.navigate(item.screen)}>
+            <Icon name={item.icon} size={28} color={tema.icono} />
+          </TouchableOpacity>
+        ))}
       </View>
     </View>
   );
 }
 
-// --- ESTILOS ---
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#23252E", padding: 20 },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 15,
-    marginTop: 30,
-  },
-  headerTitle: { color: "#fff", fontSize: 18, fontWeight: "bold" },
-  iconContainer: { alignItems: "center", marginVertical: 20 },
-  label: { color: "#fff", fontSize: 14, marginBottom: 5 },
-  pickerInside: {
-    color: "#000",
-    height: 50,
-    width: "100%",
-  },
-  inputIcon: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: 8,
-    paddingHorizontal: 10,
-    marginBottom: 15,
-  },
-  inputFlex: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    color: "#000",
-  },
-  registerBtn: {
-    backgroundColor: "#FF9045",
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: "center",
-    marginBottom: 20,
-  },
+  container: { flex: 1, padding: 20 },
+  header: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 15, marginTop: 30, paddingHorizontal: 4 },
+  headerTitle: { fontSize: 18, fontWeight: "bold" },
+  iconContainer: { alignItems: "center", marginVertical: 10 },
+  label: { fontSize: 14, fontWeight: "600", marginBottom: 6, marginTop: 8 },
+  inputIcon: { flexDirection: "row", alignItems: "center", borderRadius: 8, paddingHorizontal: 10, marginBottom: 10, height: 50, borderWidth: 1, elevation: 1 },
+  inputFlex: { flex: 1, padding: 10 },
+  pickerContainer: { borderRadius: 8, marginBottom: 10, borderWidth: 1, elevation: 1 },
+  registerBtn: { backgroundColor: "#181B3A", paddingVertical: 14, borderRadius: 8, alignItems: "center", marginTop: 15, marginBottom: 10 },
   registerText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
-  cancelBtn: {
-    backgroundColor: "#FF3333",
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: "center",
-    marginBottom: 20,
-  },
+  cancelBtn: { backgroundColor: "#FF3333", paddingVertical: 14, borderRadius: 8, alignItems: "center", marginBottom: 10 },
   cancelText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
-  bottomNav: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    alignItems: "center",
-    backgroundColor: "#2E2E38",
-    paddingVertical: 10,
-    borderRadius: 12,
-    position: "absolute",
-    bottom: 15,
-    width: "90%",
-    alignSelf: "center",
-  },
+  modalContainer: { flex: 1, padding: 20 },
+  modalInput: { borderWidth: 1, borderRadius: 8, padding: 10, marginBottom: 15, fontSize: 16 },
+  modalItem: { padding: 15, borderBottomWidth: 1 },
+  bottomNav: { flexDirection: "row", justifyContent: "space-around", alignItems: "center", paddingVertical: 12, borderTopWidth: 1, borderRadius: 16, position: "absolute", bottom: 15, width: "90%", alignSelf: "center", elevation: 6 },
 });

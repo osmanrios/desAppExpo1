@@ -1,168 +1,321 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, Alert, Image } from 'react-native';
-import { sendPasswordResetEmail } from "firebase/auth";
-import { auth, db } from "../screens/firebase/firebaseConfig";
-import { collection, query, where, getDocs } from "firebase/firestore";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  Image,
+  ScrollView,
+  ActivityIndicator,
+} from 'react-native';
+
+import Icon from 'react-native-vector-icons/MaterialIcons';
+import { sendPasswordResetEmail } from 'firebase/auth';
+import { auth } from '../screens/firebase/firebaseConfig';
 
 export default function Recuperar({ navigation }) {
-
   const [correo, setCorreo] = useState('');
+  const [loading, setLoading] = useState(false);
 
   const manejarRecuperacion = async () => {
-    if (!correo) {
-      Alert.alert('Error', 'Por favor ingresa tu correo electrónico.');
+
+    if (!correo.trim()) {
+      Alert.alert(
+        'Error',
+        'Por favor ingresa tu correo electrónico.'
+      );
       return;
     }
 
-    // ✅ Validación formato email
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
     if (!emailRegex.test(correo)) {
-      Alert.alert('Correo inválido', 'Por favor ingresa un correo electrónico válido.');
+      Alert.alert(
+        'Correo inválido',
+        'Ingresa un correo electrónico válido.'
+      );
       return;
     }
 
     try {
-      // ✅ Buscar si el email existe en Firestore
-      const q = query(collection(db, "Usuarios"), where("email", "==", correo));
-      const querySnapshot = await getDocs(q);
+      setLoading(true);
 
-      if (querySnapshot.empty) {
-        Alert.alert('Usuario no encontrado', 'No existe una cuenta registrada con ese correo.');
-        return;
-      }
-
-      // ✅ Si existe, enviar el correo de recuperación desde Firebase Auth
-      await sendPasswordResetEmail(auth, correo);
+      await sendPasswordResetEmail(auth, correo.trim().toLowerCase());
 
       Alert.alert(
         '✅ Correo enviado',
-        'Hemos enviado un enlace para restablecer tu contraseña a tu correo electrónico.'
+        'Revisa tu bandeja de entrada o la carpeta Spam.'
       );
 
       navigation.navigate('Login');
-    } catch (error) {
-      console.error("Error al enviar correo:", error);
 
-      if (error.code === 'auth/user-not-found') {
-        Alert.alert('Usuario no encontrado', 'No existe una cuenta con ese correo.');
-      } else if (error.code === 'auth/invalid-email') {
-        Alert.alert('Correo inválido', 'Por favor ingresa un correo electrónico válido.');
-      } else {
-        Alert.alert('Error', 'Ocurrió un problema al enviar el correo. Intenta nuevamente.');
+    } catch (error) {
+
+      console.log('ERROR FIREBASE:', error);
+      console.log('ERROR CODE:', error.code);
+
+      switch (error.code) {
+
+        case 'auth/user-not-found':
+          Alert.alert(
+            'Usuario no encontrado',
+            'No existe una cuenta registrada con ese correo.'
+          );
+          break;
+
+        case 'auth/invalid-email':
+          Alert.alert(
+            'Correo inválido',
+            'El correo ingresado no es válido.'
+          );
+          break;
+
+        case 'auth/too-many-requests':
+          Alert.alert(
+            'Demasiados intentos',
+            'Intenta nuevamente más tarde.'
+          );
+          break;
+
+        default:
+          Alert.alert(
+            'Error',
+            'Ocurrió un problema al enviar el correo.'
+          );
+          break;
       }
+
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <View style={styles.contenedor}>
+    <ScrollView
+      style={styles.scroll}
+      contentContainerStyle={styles.contenedor}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
 
-      <View style={styles.img}>
-        <Image
-          source={require('../../assets/LogoWOFitGestorX.png')}
-          style={styles.logoImage}
-          resizeMode="contain"
+      {/* Logo */}
+      <Image
+        source={require('../../assets/logof.png')}
+        style={styles.logoImage}
+        resizeMode="contain"
+      />
+
+      {/* Separador */}
+      <View style={styles.separatorContainer}>
+        <View style={styles.line} />
+        <Text style={styles.separatorText}>0</Text>
+        <View style={styles.line} />
+      </View>
+
+      {/* Título */}
+      <Text style={styles.titulo}>
+        Recupera tu contraseña
+      </Text>
+
+      {/* Texto */}
+      <Text style={styles.instruccion}>
+        Ingresa el correo asociado a tu cuenta
+        para enviarte un enlace de recuperación.
+      </Text>
+
+      {/* Input */}
+      <View style={styles.inputContainer}>
+        <Icon
+          name="email"
+          size={22}
+          color="#000"
+          style={styles.icon}
+        />
+
+        <TextInput
+          style={styles.entrada}
+          placeholder="Correo Electrónico"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+          value={correo}
+          onChangeText={(texto) =>
+            setCorreo(texto.toLowerCase())
+          }
         />
       </View>
 
-      <View style={styles.separatorContainer}>
-        <View style={styles.line} />
-        <Text style={styles.separatorText}>O</Text>
-        <View style={styles.line} />
-      </View>
-
-      <Text style={styles.titulo}>Recuperar Contraseña</Text>
-
-      <Text style={styles.instruccion}>
-        Ingresa el correo electrónico asociado a tu cuenta para enviar un enlace de recuperación.
+      <Text style={styles.inputHint}>
+        Ejemplo: nombre@gmail.com
       </Text>
 
-      <TextInput
-        style={styles.entrada}
-        placeholder="Correo electrónico"
-        keyboardType="email-address"
-        autoCapitalize="none"
-        value={correo}
-        onChangeText={(texto) => setCorreo(texto.toLowerCase())} // ✅ Siempre minúscula
-      />
+      {/* Botón */}
+      <TouchableOpacity
+        style={[
+          styles.boton,
+          loading && { opacity: 0.7 }
+        ]}
+        onPress={manejarRecuperacion}
+        disabled={loading}
+      >
 
-      <View style={styles.botonContenedor}>
-        <Button title="Enviar enlace" onPress={manejarRecuperacion} color="#FF9045" />
+        {loading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.botonTexto}>
+            Enviar Enlace
+          </Text>
+        )}
+
+      </TouchableOpacity>
+
+      {/* Volver */}
+      <TouchableOpacity
+        onPress={() => navigation.navigate('Login')}
+      >
+        <Text style={styles.volver}>
+          Volver al Inicio de Sesión
+        </Text>
+      </TouchableOpacity>
+
+      {/* Footer */}
+      <View style={styles.footer}>
+        <Text style={styles.byText}>By</Text>
+        <Text style={styles.companyText}>
+          WO Devs
+        </Text>
       </View>
 
-      <Text style={styles.volver} onPress={() => navigation.navigate('Login')}>
-        Volver al inicio de sesión
-      </Text>
-
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  contenedor: {
+
+  scroll: {
     flex: 1,
-    padding: 20,
-    justifyContent: 'center',
-    backgroundColor: '#23252E',
+    backgroundColor: '#ffffff',
   },
-  titulo: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center',
-    color: '#fff',
-    marginTop: 20,
-  },
-  instruccion: {
-    fontSize: 16,
-    marginBottom: 20,
-    textAlign: 'center',
-    color: '#fff',
-  },
-  entrada: {
-    height: 50,
-    backgroundColor: '#fff',
-    borderRadius: 5,
-    paddingHorizontal: 15,
-    marginBottom: 20,
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    textTransform: 'lowercase', // ✅ Visualmente minúscula
-  },
-  botonContenedor: {
-    marginBottom: 20,
-  },
-  volver: {
-    textAlign: 'center',
-    color: '#FF9045',
-    textDecorationLine: 'underline',
-    fontSize: 16,
-    marginTop: 10,
-  },
-  img: {
-    marginBottom: 5,
-    justifyContent: 'center',
+
+  contenedor: {
+    flexGrow: 1,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 25,
+    paddingVertical: 40,
+    backgroundColor: '#ffffff',
   },
+
   logoImage: {
-    width: 200,
-    height: 200,
-  },
-  separatorContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+    width: 160,
+    height: 160,
     marginBottom: 10,
-    paddingHorizontal: 5,
   },
-  separatorText: {
-    marginHorizontal: 10,
-    color: "#FFF",
-    fontSize: 16,
-    fontWeight: "bold",
+
+  separatorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 20,
   },
+
   line: {
     flex: 1,
     height: 1,
-    backgroundColor: "#fff",
+    backgroundColor: '#ccc',
   },
+
+  separatorText: {
+    marginHorizontal: 10,
+    color: '#181B3A',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+
+  titulo: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#181B3A',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+
+  instruccion: {
+    fontSize: 14,
+    color: '#555',
+    textAlign: 'center',
+    marginBottom: 25,
+    lineHeight: 20,
+  },
+
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    width: '100%',
+    height: 50,
+    marginBottom: 4,
+  },
+
+  icon: {
+    marginRight: 8,
+  },
+
+  entrada: {
+    flex: 1,
+    fontSize: 16,
+  },
+
+  inputHint: {
+    fontSize: 12,
+    color: '#888',
+    alignSelf: 'flex-start',
+    marginBottom: 20,
+    marginLeft: 4,
+  },
+
+  boton: {
+    backgroundColor: '#181B3A',
+    borderRadius: 8,
+    paddingVertical: 14,
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+
+  botonTexto: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+
+  volver: {
+    color: '#FF9045',
+    fontSize: 15,
+    textDecorationLine: 'underline',
+    marginBottom: 20,
+  },
+
+  footer: {
+    marginTop: 30,
+    alignItems: 'center',
+  },
+
+  byText: {
+    fontSize: 14,
+    color: '#181B3A',
+  },
+
+  companyText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#181B3A',
+  },
+
 });
